@@ -6,3 +6,22 @@
 
 // Bootstrap
 @import 'bootstrap/scss/bootstrap';
+
+
+body {
+  background: url('../../public/assets/img/avila.jpg') no-repeat center center fixed;
+  background-size: cover;
+  -webkit-background-size: cover;
+  -moz-background-size: cover;
+  -o-background-size: cover;
+}
+
+.card
+{
+
+    border-radius: 10px; /* Bordes redondeados */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Sombra suave */
+    padding: 20px; /* Espaciado interno */
+    backdrop-filter: blur(-10px); /* Efecto de desenfoque */
+    background-color: rgba(211, 233, 230, 0.564); /* Color de fondo con opacidad */
+}

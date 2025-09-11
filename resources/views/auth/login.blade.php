@@ -10,8 +10,9 @@
                 <div class="card-body">
                     <form method="POST" action="{{ route('login') }}">
                         @csrf
-
+                        <img src="{{ asset('assets/img/fona.jpeg') }}" alt="" style=" width: 100px; height: 100px; display: block; margin-left: auto; margin-right: auto; margin-bottom: 20px;">
                         <div class="row mb-3">
+
                             <label for="email" class="col-md-4 col-form-label text-md-end">{{ __('Email Address') }}</label>
 
                             <div class="col-md-6">
