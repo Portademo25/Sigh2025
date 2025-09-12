@@ -47,6 +47,12 @@ return [
             'password' => env('MAIL_PASSWORD'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            'stream' => [
+                'ssl' => [
+                     'verify_peer' => false,
+                     'verify_peer_name' => false,
+    ],
+],
         ],
 
         'ses' => [
@@ -96,6 +102,7 @@ return [
             ],
             'retry_after' => 60,
         ],
+
 
     ],
 
