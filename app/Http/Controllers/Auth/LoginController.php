@@ -43,27 +43,13 @@ class LoginController extends Controller
         $this->middleware('auth')->only('logout');
     }
 
-     public function login(Request $request)
+      public function login(Request $request)
     {
-        // Genera una llave de "throttling" basada en la IP del usuario
-        $throttleKey = RateLimiter::for('login', function($request) {
-            return $request->ip();
-        });
-
-        // Verifica si la IP ha hecho demasiados intentos
-        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            $seconds = RateLimiter::availableIn($throttleKey);
-            throw ValidationException::withMessages([
-                'email' => "Demasiados intentos de conexión desde tu dirección IP. Por favor, inténtalo de nuevo en {$seconds} segundos.",
-            ]);
-        }
-
         $credentials = $request->validate([
             'email' => 'required|email',
             'password' => 'required',
-            
         ]);
-
+        
         // Busca al usuario por su email
         $user = User::where('email', $credentials['email'])->first();
 
@@ -82,8 +68,6 @@ class LoginController extends Controller
                 $user->locked_at = null;
                 $user->save();
             }
-            // Limpia el contador de intentos del rate limiter para la IP
-            RateLimiter::clear($throttleKey);
             $request->session()->regenerate();
             return redirect()->intended($this->redirectTo);
         }
@@ -100,12 +84,9 @@ class LoginController extends Controller
                     'email' => 'Ha excedido el límite de intentos. Su cuenta ha sido bloqueada permanentemente.',
                 ]);
             }
-
+            
             $user->save();
         }
-
-        // Incrementa el contador de intentos en el rate limiter
-        RateLimiter::hit($throttleKey);
 
         // Lanza la excepción de validación para mostrar el error genérico
         throw ValidationException::withMessages([

@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\InicioController;
+use App\Http\Controllers\HomeController;
 use Illuminate\Support\Facades\Auth;
 
 //ruta de inicio
@@ -17,6 +18,16 @@ Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->name
 
 
 // rutas para admin (acceso total)
+Route::prefix('Administrador')->middleware(['auth','role:Administrador'])->group(function(){
+    Route::get('/dashboard', [HomeController::class,'adminDashboard'])->name('admin.dashboard');
+});
 
 
-// rutas para usuarios (acceso limitado por permisos)
+// rutas para talento humano (acceso limitado por permisos)
+Route::prefix('TalentoHumano')->middleware(['auth','role:Telento Humano'])->group(function(){
+    Route::get('/dashboard', [HomeController::class,'talenthumanDashboard'])->name('talenthuman.dashboard');
+});
+// rutas para empleado (acceso limitado por permisos)
+Route::prefix('Empleado')->middleware(['auth','role:Empleado'])->group(function(){
+    Route::get('/dashboard', [HomeController::class,'employeeDashboard'])->name('employee.dashboard');
+});
