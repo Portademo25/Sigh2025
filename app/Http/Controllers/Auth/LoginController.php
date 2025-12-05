@@ -21,7 +21,7 @@ class LoginController extends Controller
     // Sobrescribir el método authenticated para redireccionar por rol
     protected function authenticated(Request $request, $user)
     {
-        if ($user->hasRole('administrador')) {
+        if ($user->hasRole('admin')) {
             return redirect()->route('admin.dashboard');
         } elseif ($user->hasRole('empleado')) {
             return redirect()->route('empleado.dashboard');
