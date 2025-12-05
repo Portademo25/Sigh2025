@@ -19,31 +19,7 @@
 <body>
     <div id="app">
         <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm">
-            @auth
-   |             <li class="nav-item dropdown">
-        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-            {{ Auth::user()->name }}
-            @if(Auth::user()->hasRole('admin'))
-                <span class="badge bg-danger">Admin</span>
-            @elseif(Auth::user()->hasRole('empleado'))
-                <span class="badge bg-primary">Empleado</span>
-            @endif
-        </a>
-        <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{{ route('dashboard') }}">Dashboard</a></li>
-            <li>
-                <a class="dropdown-item" href="{{ route('logout') }}"
-                   onclick="event.preventDefault();
-                   document.getElementById('logout-form').submit();">
-                    Cerrar Sesión
-                </a>
-                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                    @csrf
-                </form>
-            </li>
-        </ul>
-    </li>
-@endauth
+
             <div class="container">
                <img src="{{ asset('images/fona.jpeg') }}" alt="FONA Logo" style="height:40px; width:40px; margin-right:10px;">
                 <a class="navbar-brand" href="{{ url('/') }}">
@@ -75,7 +51,32 @@
                                 </li>
                             @endif
                         @else
-                            <li class="nav-item dropdown">
+                         @auth
+                       <li class="nav-item dropdown">
+                           <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" ">
+                               {{ Auth::user()->name }}
+                                  @if(Auth::user()->hasRole('admin'))
+                                       <span class="badge bg-danger">Admin</span>
+                                            @elseif(Auth::user()->hasRole('empleado'))
+                                <span class="badge bg-primary">Empleado</span>
+            @endif
+        </a>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{{ route('dashboard') }}">Dashboard</a></li>
+            <li>
+                <a class="dropdown-item" href="{{ route('logout') }}"
+                   onclick="event.preventDefault();
+                   document.getElementById('logout-form').submit();">
+                    Cerrar Sesión
+                </a>
+                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                    @csrf
+                </form>
+            </li>
+        </ul>
+    </li>
+@endauth
+                            {{-- <li class="nav-item dropdown">
                                 <a id="navbarDropdown" class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
                                     {{ Auth::user()->name }}
                                 </a>
@@ -90,7 +91,7 @@
                                     <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
                                         @csrf
                                     </form>
-                                </div>
+                                </div> --}}
                             </li>
                         @endguest
                     </ul>
