@@ -22,6 +22,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/admin/users', function () {
             return view('admin.users');
         })->name('admin.users');
+
+        
     });
 
     // Rutas para empleados

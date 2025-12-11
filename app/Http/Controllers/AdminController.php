@@ -53,4 +53,32 @@ class AdminController extends Controller
     {
         return view('admin.reportes');
     }
+
+    public function usuariosBloqueados()
+    {
+        $usuariosBloqueados = User::where('is_locked', true)->paginate(10);
+        return view('admin.usuarios-bloqueados', compact('usuariosBloqueados'));
+    }
+
+     public function desbloquearUsuario($id)
+    {
+        $usuario = User::findOrFail($id);
+        $usuario->unlockAccount();
+
+        return back()->with('success', 'Usuario desbloqueado exitosamente.');
+    }
+
+    public function verBloqueoUsuario($id)
+    {
+        $usuario = User::findOrFail($id);
+        return view('admin.ver-bloqueo', compact('usuario'));
+    }
+
+    public function resetearIntentosLogin($id)
+    {
+        $usuario = User::findOrFail($id);
+        $usuario->update(['login_attempts' => 0]);
+
+        return back()->with('success', 'Intentos de login reseteados exitosamente.');
+    }
 }

@@ -6,7 +6,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Dashboard - Administrador</h4>
+                    <h4 class="mb-0">Dashboard - Administrativo</h4>
                 </div>
                 <div class="card-body">
                     <div class="row">
