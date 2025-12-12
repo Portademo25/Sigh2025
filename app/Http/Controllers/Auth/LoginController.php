@@ -5,7 +5,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
-use Illuminate\Http\Request;
+use Illuminate\Http\Request; // ¡Asegúrate de importar Request!
+use App\Models\User; // ¡Asegúrate de importar tu modelo User!
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\RateLimiter;
+use App\Models\Conexion;
+
 
 class LoginController extends Controller
 {
@@ -15,7 +20,19 @@ class LoginController extends Controller
     // protected $redirectTo = '/home'; // ← Comentar o eliminar esta línea
     // Añadir la propiedad para evitar el error "Undefined property '$redirectTo'"
     protected $redirectTo = '/home';
-    
+
+    /**
+     * El número máximo de intentos de inicio de sesión permitidos.
+     * @var int
+     */
+    protected $maxAttempts = 3;
+
+    /**
+     * La cantidad de minutos de espera después de la limitación de velocidad.
+     * @var int
+     */
+    protected $decayMinutes = 5;
+
     // En su lugar, usar el método authenticated()
 
     public function __construct()
@@ -31,7 +48,7 @@ class LoginController extends Controller
     protected function authenticated(Request $request, $user)
     {
         // Verificar si el usuario tiene algún rol
-        if ($user->hasRole('administrador')) {
+        if ($user->hasRole('admin')) {
             return redirect()->route('admin.dashboard');
         } elseif ($user->hasRole('empleado')) {
             return redirect()->route('empleado.dashboard');
@@ -56,4 +73,57 @@ class LoginController extends Controller
 
         return '/home';
     }
+
+    public function login(Request $request)
+{
+    // 1. Validar si el usuario existe y si está permanentemente bloqueado
+    $this->validateLogin($request);
+
+    // 2. Verificar si el usuario ha excedido el límite de intentos (3 fallos)
+    if ($this->hasTooManyLoginAttempts($request)) {
+
+        // --- LÓGICA DE BLOQUEO PERMANENTE ---
+        // Si el usuario ya está 'throttled' (ha fallado 3 veces en 5 minutos),
+        // aprovechamos para bloquearlo permanentemente.
+        $user = User::where($this->username(), $request->{$this->username()})->first();
+        if ($user && !$user->is_locked) {
+            $user->is_locked = true;
+            $user->save();
+        }
+        // ------------------------------------
+
+        // Devolver la respuesta de bloqueo temporal de Laravel (5 minutos)
+        $this->fireLockoutEvent($request);
+        return $this->sendLockoutResponse($request);
+    }
+
+    // 3. Intentar autenticar (credenciales correctas)
+    if ($this->attemptLogin($request)) {
+        return $this->sendLoginResponse($request);
+    }
+
+    // 4. Si la autenticación falló (credenciales incorrectas):
+
+    // Incrementar el contador de intentos fallidos de Laravel
+    $this->incrementLoginAttempts($request);
+
+    // --- LÓGICA DE BLOQUEO PERMANENTE AL ALCANZAR EL LÍMITE ---
+    // Verificar si con este intento fallido se alcanzó o superó el límite ($maxAttempts = 3)
+    if (RateLimiter::attempts($this->throttleKey($request)) >= $this->maxAttempts) {
+
+        $user = User::where($this->username(), $request->{$this->username()})->first();
+        if ($user && !$user->is_locked) {
+            // Marcar como permanentemente bloqueado en la base de datos
+            $user->is_locked = true;
+            $user->save();
+        }
+    }
+    // -----------------------------------------------------------
+
+    // Devolver la respuesta de error de credenciales estándar
+    return $this->sendFailedLoginResponse($request);
+
+}
+
+
 }

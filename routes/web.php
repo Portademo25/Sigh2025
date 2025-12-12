@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -10,7 +12,7 @@ Route::get('/', function () {
 
 Auth::routes();
 
-Route::middleware(['auth'])->group(function () {
+    Route::middleware(['auth'])->group(function () {
     Route::get('/home', [HomeController::class, 'index'])->name('home');
 
     // Rutas para administradores
@@ -18,12 +20,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/admin/dashboard', function () {
             return view('admin.dashboard');
         })->name('admin.dashboard');
+        Route::get('users', [UserController::class, 'index'])->name('admin.users.index');
+        Route::get('/users/locked', [UserController::class, 'lockedUsers'])->name('admin.users.locked');
+        Route::post('/users/{user}/unlock', [UserController::class, 'unlockUser'])->name('admin.users.unlock');
+        Route::get('/users/connections', [AdminUserController::class, 'connectionHistory'])->name('admin.users.connections');
 
-        Route::get('/admin/users', function () {
-            return view('admin.users');
-        })->name('admin.users');
 
-        
     });
 
     // Rutas para empleados

@@ -15,7 +15,7 @@
                                 <div class="card-body">
                                     <h5 class="card-title">Gestión de Usuarios</h5>
                                     <p class="card-text">Administrar usuarios del sistema</p>
-                                    <a href="{{ route('admin.users') }}" class="btn btn-light">Acceder</a>
+                                    <a href="{{ route('admin.users.index') }}" class="btn btn-light">Ir a</a>
                                 </div>
                             </div>
                         </div>
@@ -24,7 +24,7 @@
                                 <div class="card-body">
                                     <h5 class="card-title">Reportes</h5>
                                     <p class="card-text">Ver reportes del sistema</p>
-                                    <a href="#" class="btn btn-light">Acceder</a>
+                                    <a href="#" class="btn btn-light">Ir a</a>
                                 </div>
                             </div>
                         </div>
@@ -33,7 +33,7 @@
                                 <div class="card-body">
                                     <h5 class="card-title">Configuración</h5>
                                     <p class="card-text">Configurar el sistema</p>
-                                    <a href="#" class="btn btn-light">Acceder</a>
+                                    <a href="#" class="btn btn-light">Ir a</a>
                                 </div>
                             </div>
                         </div>
