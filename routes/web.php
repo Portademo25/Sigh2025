@@ -5,6 +5,8 @@ use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\SettingsController;
+
 
 Route::get('/', function () {
     return view('welcome');
@@ -24,6 +26,10 @@ Auth::routes();
         Route::get('/users/locked', [UserController::class, 'lockedUsers'])->name('admin.users.locked');
         Route::post('/users/{user}/unlock', [UserController::class, 'unlockUser'])->name('admin.users.unlock');
         Route::get('/users/connections', [AdminUserController::class, 'connectionHistory'])->name('admin.users.connections');
+        Route::get('/users/active', [AdminUserController::class, 'activeUsers'])->name('admin.users.active');
+        Route::post('/users/{user}/kick', [AdminUserController::class, 'kickUser'])->name('admin.users.kick');
+        Route::get('/settings', [SettingsController::class, 'index'])->name('admin.settings.index');
+        Route::post('/settings/update', [SettingsController::class, 'update'])->name('admin.settings.update');
 
 
     });

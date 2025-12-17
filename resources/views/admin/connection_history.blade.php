@@ -5,11 +5,26 @@
     <div class="row justify-content-center">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header">
-                    <h2 class="mb-0">📜 Historial Completo de Conexiones</h2>
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="mb-0">📜 Historial de Conexiones</h2>
+                    <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary btn-sm">
+                        ← Dashboard
+                    </a>
                 </div>
 
                 <div class="card-body">
+                    <form action="{{ route('admin.users.connections') }}" method="GET" class="mb-4">
+                        <div class="input-group">
+                            <input type="text" name="search" class="form-control"
+                                   placeholder="Buscar por nombre, email o IP..."
+                                   value="{{ $search }}">
+                            <button class="btn btn-primary" type="submit">Buscar</button>
+                            @if($search)
+                                <a href="{{ route('admin.users.connections') }}" class="btn btn-outline-secondary">Limpiar</a>
+                            @endif
+                        </div>
+                    </form>
+
                     <table class="table table-striped table-hover">
                         <thead>
                             <tr>
@@ -20,19 +35,23 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($connections as $connection)
-                            <tr>
-                                <td>{{ $connection->user->name ?? 'Usuario Eliminado' }}</td>
-                                <td>{{ $connection->user->email ?? 'N/A' }}</td>
-                                <td>{{ $connection->ip_address }}</td>
-                                <td>{{ $connection->created_at->format('d/m/Y H:i:s') }}</td>
-                            </tr>
-                            @endforeach
+                          @foreach ($connections as $connection)
+                <tr>
+    <td>{{ $connection->user->name ?? 'Usuario Eliminado' }}</td>
+    <td>{{ $connection->user->email ?? 'N/A' }}</td>
+    <td><code>{{ $connection->ipconexion }}</code></td>
+    <td>
+        {{-- Combinamos fecha y hora --}}
+        {{ \Carbon\Carbon::parse($connection->fechaconexion)->format('d/m/Y') }} 
+        <span class="text-muted">|</span> 
+        {{ $connection->horaconexion }}
+    </td>
+</tr>
+@endforeach
                         </tbody>
                     </table>
 
-                    {{-- Renderizar los enlaces de paginación --}}
-                    <div class="d-flex justify-content-center">
+                    <div class="d-flex justify-content-center mt-3">
                         {{ $connections->links() }}
                     </div>
                 </div>

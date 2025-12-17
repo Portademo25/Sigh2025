@@ -30,17 +30,17 @@
             </div>
         </div>
 
-        {{-- Tarjeta 3: Más datos... --}}
+        {{-- Tarjeta 3: Usuarios Activos --}}
         <div class="col-md-4 mb-4">
-            <div class="card text-white bg-success">
-                <div class="card-header">Usuarios Activos</div>
-                <div class="card-body">
-                    <h5 class="card-title">Próximamente</h5>
-                    <p class="card-text">Sección para ver usuarios activos en tiempo real.</p>
-                </div>
-            </div>
+          <div class="card text-white bg-success">
+               <div class="card-header">Usuarios en Línea</div>
+                  <div class="card-body">
+                      <h5 class="card-title">{{ $activeUsersCount }} Activos</h5>
+                      <p class="card-text">Usuarios navegando en el sitio ahora.</p>
+                      <a href="{{ route('admin.users.active') }}" class="btn btn-sm btn-light">Ver quiénes son</a>
+                 </div>
+             </div>
         </div>
-    </div>
 
     {{-- Conexiones Recientes en el Dashboard --}}
     <div class="card mt-4">

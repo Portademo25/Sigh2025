@@ -6,19 +6,27 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use App\Http\Middleware\UpdateUserLastSeen;
+use App\Http\Middleware\CheckSessionId;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
-    )
-    ->withMiddleware(function ($middleware) {
+)
+->withMiddleware(function ($middleware) {
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,
+             'web' => [
+                     UpdateUserLastSeen::class,
+                     CheckSessionId::class,
+    ],
         ]);
+
+
     })
     ->withExceptions(function (Exceptions $exceptions) {
         // Aquí configuras excepciones, por ejemplo:

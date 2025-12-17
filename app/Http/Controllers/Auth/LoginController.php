@@ -9,6 +9,8 @@ use Illuminate\Http\Request; // ¡Asegúrate de importar Request!
 use App\Models\User; // ¡Asegúrate de importar tu modelo User!
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\Conexion;
 
 
@@ -53,7 +55,7 @@ class LoginController extends Controller
         } elseif ($user->hasRole('empleado')) {
             return redirect()->route('empleado.dashboard');
         }
-
+        
         // Redirección por defecto si no tiene rol asignado
         return redirect('/home');
     }
@@ -75,7 +77,7 @@ class LoginController extends Controller
     }
 
     public function login(Request $request)
-{
+    {
     // 1. Validar si el usuario existe y si está permanentemente bloqueado
     $this->validateLogin($request);
 
@@ -123,7 +125,33 @@ class LoginController extends Controller
     // Devolver la respuesta de error de credenciales estándar
     return $this->sendFailedLoginResponse($request);
 
+    }
+
+protected function sendLoginResponse(Request $request)
+{
+    $request->session()->regenerate();
+    $user = Auth::user();
+
+    // LOG DE PRUEBA: Revisa storage/logs/laravel.log después de intentar loguearte
+    Log::info('Intento de registro de conexión para: ' . $user->email);
+
+    try {
+        Conexion::create([
+           'user_id'       => $user->id,
+           'fechaconexion' => now()->format('Y-m-d'), // Fecha (Año-Mes-Día)
+           'horaconexion'  => now()->format('H:i:s'), // Hora (Hora:Minuto:Segundo)
+           'ipconexion'    => $request->ip(),
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error guardando conexión: ' . $e->getMessage());
+    }
+
+    $user->current_session_id = $request->session()->getId();
+    $user->save();
+     $this->clearLoginAttempts($request);
+    return $this->authenticated($request, $user) ?: redirect()->intended($this->redirectPath());
 }
 
 
 }
+

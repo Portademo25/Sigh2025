@@ -33,7 +33,7 @@
                                 <div class="card-body">
                                     <h5 class="card-title">Configuración</h5>
                                     <p class="card-text">Configurar el sistema</p>
-                                    <a href="#" class="btn btn-light">Ir a</a>
+                                    <a href="{{ route('admin.settings.index') }}" class="btn btn-light">Ir a</a>
                                 </div>
                             </div>
                         </div>
