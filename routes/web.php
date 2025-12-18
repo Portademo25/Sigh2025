@@ -30,9 +30,13 @@ Auth::routes();
         Route::post('/users/{user}/kick', [AdminUserController::class, 'kickUser'])->name('admin.users.kick');
         Route::get('/settings', [SettingsController::class, 'index'])->name('admin.settings.index');
         Route::post('/settings/update', [SettingsController::class, 'update'])->name('admin.settings.update');
+        Route::get('/sigesp', [SettingsController::class, 'sigesp'])->name('admin.settings.sigesp');
+        Route::post('/sigesp/sync', [SettingsController::class, 'syncSigesp'])->name('admin.settings.sigesp.sync');
+
+});
 
 
-    });
+
 
     // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {

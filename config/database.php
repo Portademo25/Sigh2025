@@ -113,6 +113,17 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        'sigesp' => [
+        'driver'   => 'pgsql', // O 'informix' según tu versión de SIGESP
+        'host'     => env('SIGESP_DB_HOST', '10.0.0.x'),
+        'database' => env('SIGESP_DB_DATABASE', 'sigesp'),
+        'username' => env('SIGESP_DB_USERNAME', 'usuario'),
+        'password' => env('SIGESP_DB_PASSWORD', '123456'),
+        'charset'  => 'utf8',
+        'prefix'   => '',
+        'schema'   => 'sigesp',
+    ],
+
     ],
 
     /*

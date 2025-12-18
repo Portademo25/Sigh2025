@@ -152,6 +152,25 @@ protected function sendLoginResponse(Request $request)
     return $this->authenticated($request, $user) ?: redirect()->intended($this->redirectPath());
 }
 
+protected function incrementLoginAttempts(Request $request)
+{
+    $this->limiter()->hit($this->throttleKey($request), $this->decayMinutes());
+
+    $user = \App\Models\User::where($this->username(), $request->{$this->username()})->first();
+
+    if ($user) {
+        // LEER EL VALOR DESDE LA BASE DE DATOS
+        $maxAttempts = \App\Models\Setting::where('key', 'max_attempts')->value('value') ?? 3;
+
+        if ($this->limiter()->attempts($this->throttleKey($request)) >= $maxAttempts) {
+            $user->update(['is_locked' => true]);
+            
+            // Opcional: Registrar en el log
+            Log::warning("Usuario bloqueado por exceder {$maxAttempts} intentos: " . $user->email);
+        }
+    }
+}
+
 
 }
 

@@ -18,6 +18,8 @@
                                     <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#security">🛡️ Seguridad</button>
                                     <button class="nav-link" data-bs-toggle="pill" data-bs-target="#general">💻 General</button>
                                     <button class="nav-link" data-bs-toggle="pill" data-bs-target="#roles">👥 Roles y Permisos</button>
+                                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#sigesp"><a href="{{ route('admin.settings.sigesp') }}" class="btn btn-light">🔗 Sincronización con SIGESP</a></button>
+
                                 </div>
                             </div>
 
@@ -28,13 +30,20 @@
                                         <hr>
                                         <div class="mb-3">
                                             <label class="form-label">Intentos máximos de Login antes de bloquear</label>
-                                            <input type="number" name="max_attempts" class="form-control" value="3">
+                                            <input type="number" name="max_attempts" class="form-control"
+                                                   value="{{ $settings['max_attempts'] ?? '3' }}">
                                             <small class="text-muted">Actualmente configurado en 3 intentos.</small>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">Minutos para considerar usuario "Activo"</label>
                                             <input type="number" name="active_threshold" class="form-control" value="5">
                                         </div>
+                                       <div class="mb-3">
+                                              <label class="form-label">Nombre de la Aplicación</label>
+                                              <input type="text" name="app_name" class="form-control"
+                                              value="{{ $settings['app_name'] ?? config('app.name') }}">
+                                        </div>
+
                                     </div>
 
                                     <div class="tab-pane fade" id="general">
@@ -59,7 +68,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <div class="card-footer bg-transparent text-end border-top-0">
                             <button type="submit" class="btn btn-primary">Guardar Cambios</button>
                         </div>

@@ -23,8 +23,9 @@
             <div class="container">
                <img src="{{ asset('images/fona.jpeg') }}" alt="FONA Logo" style="height:40px; width:40px; margin-right:10px;">
                 <a class="navbar-brand" href="{{ url('/') }}">
-                    {{ config('app.name', 'Laravel') }}
+                       {{ config('app.name') }}
                 </a>
+                
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="{{ __('Toggle navigation') }}">
                     <span class="navbar-toggler-icon"></span>
                 </button>
