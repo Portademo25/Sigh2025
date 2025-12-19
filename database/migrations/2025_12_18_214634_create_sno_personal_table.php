@@ -12,9 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('sno_personal', function (Blueprint $table) {
-            $table->id();
-            $table->timestamps();
-        });
+    $table->id();
+    $table->string('codemp');           // Código de empresa (necesario para la relación)
+    $table->string('codper');           // Código interno del personal
+    $table->string('cedper')->unique(); // Cédula (la usamos como llave única para sincronizar)
+    $table->string('nomper');           // Nombres
+    $table->string('apeper');           // Apellidos
+    $table->string('coreleper')->nullable(); // Correo electrónico
+    $table->date('fecingper')->nullable();   // Fecha de ingreso
+    $table->string('codger')->nullable();    // Código de gerencia o unidad
+    $table->timestamps();               // created_at y updated_at
+});
     }
 
     /**
