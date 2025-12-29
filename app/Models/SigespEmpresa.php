@@ -13,5 +13,5 @@ class SigespEmpresa extends Model
     public $incrementing = false;     // No es un id autoincremental
     protected $keyType = 'string';    // El código suele ser string (ej: '0001')
 
-    protected $fillable = ['codemp', 'nombre', 'rif', 'dirlibemp', 'telemp'];
+    protected $fillable = ['codemp', 'nombre', 'rif', 'dir', 'telemp'];
 }

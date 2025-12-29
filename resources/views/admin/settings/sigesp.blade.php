@@ -1,69 +1,37 @@
-@extends('layouts.app') {{-- O tu layout principal --}}
+@extends('layouts.app')
 
 @section('content')
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-md-8 mx-auto">
-            <div class="card card-primary card-outline shadow">
-                <div class="card-header">
-                    <h3 class="card-title"><i class="fas fa-sync"></i> Sincronización SIGESP</h3>
-                    <div class="card-tools">
-                        <span class="badge badge-info" style="color: black;">Última sincronización: {{ $lastSync }}</span>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">Estado actual de las tablas locales:</p>
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <h4>Panel de Control SIGESP</h4>
+        </div>
+        <div class="card-body text-center">
+            <div class="alert alert-info">
+                <strong>Última Sincronización:</strong> {{ $lastSync }}
+            </div>
 
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-striped">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th>Módulo</th>
-                                    <th class="text-center">Registros</th>
-                                    <th>Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($status as $s)
-                                <tr>
-                                    <td>{{ $s['nombre'] }}</td>
-                                    <td class="text-center"><strong>{{ number_format($s['total']) }}</strong></td>
-                                    <td>
-                                        @if($s['total'] > 0)
-                                            <span class="badge badge-success" style="color: black;">Sincronizado</span>
-                                        @else
-                                            <span class="badge badge-danger" style="color: black;" >Vacío</span>
-                                        @endif
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
+            <p>Este proceso actualizará las empresas, trabajadores, nóminas y periodos históricos desde el servidor central.</p>
 
-                    <div class="mt-4 text-center">
-                       <form action="{{ route('admin.settings.sigesp.sync') }}" method="POST" id="syncForm">
-                          @csrf  {{-- <--- ESTA LÍNEA ES OBLIGATORIA --}}
+            <form action="{{ route('admin.settings.sigesp.sync') }}" method="POST" id="syncForm">
+                @csrf
+                <button type="submit" class="btn btn-primary btn-lg" id="btnSync">
+                    <i class="fas fa-sync"></i> Iniciar Sincronización Ahora
+                </button>
+            </form>
 
-                          <button type="submit" class="btn btn-primary btn-lg" id="btnSync">
-                               <i class="fas fa-cloud-download-alt"></i> Iniciar Sincronización Masiva
-                          </button>
-                        </form>
-                        <div id="loader" style="display:none;" class="mt-3">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <p class="text-primary mt-2">Procesando datos desde SIGESP, por favor espere...</p>
-                        </div>
-                    </div>
-                </div>
+            <div id="loader" style="display:none;" class="mt-3">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p>Sincronizando datos... por favor no cierre esta ventana.</p>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    document.getElementById('syncForm').addEventListener('submit', function() {
-        document.getElementById('btnSync').style.display = 'none';
+    document.getElementById('syncForm').onsubmit = function() {
+        document.getElementById('btnSync').disabled = true;
         document.getElementById('loader').style.display = 'block';
-    });
+    };
 </script>
-@stop
+@endsection

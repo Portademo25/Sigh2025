@@ -10,11 +10,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
-use App\Models\SigespEmpresa;
-use App\Models\SnoNomina;
 use App\Models\SnoPersonal;
-use App\Models\SnoHperiodo;
-use App\Models\SnoHpersonalnomina;
+use Illuminate\Support\Facades\Log;
 
 
 class SettingsController extends Controller
@@ -55,185 +52,93 @@ class SettingsController extends Controller
     return redirect()->back()->with('success', 'Configuraciones actualizadas con éxito.');
 }
 
-     public function syncSigesp(Request $request)
+public function syncSigesp(Request $request)
 {
-    set_time_limit(1200);
-       $periodoSigesp = DB::connection('sigesp')
-        ->table('sno_periodo')
-        ->select('codnom', 'codper', 'cerper', 'conper')
-        ->where('peract', 1)
-        ->first();
-
-    if (!$periodoSigesp) {
-        return back()->with('error', 'Error: No se encontró un periodo activo en SIGESP.');
-    }
-
-    // 2. Validar si está CERRADA (cerper = 1) y CONTABILIZADA (conper = 1)
-    // Nota: En SIGESP, 0 = Abierto, 1 = Cerrado/Sí
-    if ($periodoSigesp->cerper != 1) {
-        return back()->with('error', "La nómina [{$periodoSigesp->codnom}] periodo [{$periodoSigesp->codper}] aún está ABIERTA en SIGESP.");
-    }
-
-    if ($periodoSigesp->conper != 1) {
-        return back()->with('error', "La nómina [{$periodoSigesp->codnom}] está cerrada pero aún NO ha sido CONTABILIZADA.");
-    }
+    set_time_limit(0);
+    ini_set('memory_limit', '1024M');
 
     try {
-        // 1. OBTENER COLUMNAS REALES DE SIGESP (Autodetección)
-        $columnasReales = DB::connection('sigesp')
-            ->getSchemaBuilder()
-            ->getColumnListing('sigesp_empresa');
+        $reporte = [];
 
-        // Función auxiliar para buscar el nombre correcto de la columna
-        $findCol = function($options) use ($columnasReales) {
-            foreach ($options as $opt) {
-                if (in_array($opt, $columnasReales)) return $opt;
-            }
-            return null;
-        };
-
-        // Mapeamos dinámicamente según lo que exista en SIGESP
-        $colNombre = $findCol(['nomemp', 'nombemp', 'nombre']);
-        $colRif    = $findCol(['rifemp', 'rif']);
-        $colDir    = $findCol(['diremp', 'diratemp', 'dirlibemp', 'direccion']);
-        $colTel    = $findCol(['telemp', 'telefono']);
-
-        // Extraemos solo las columnas que encontramos
-        $queryCols = array_filter(['codemp', $colNombre, $colRif, $colDir, $colTel]);
-
-        $empresaSigesp = DB::connection('sigesp')
-            ->table("public.sigesp_empresa")
-            ->select($queryCols)
-            ->get();
-
-        foreach ($empresaSigesp as $row) {
-            SigespEmpresa::updateOrCreate(
-                ['codemp' => trim($row->codemp)],
-                [
-                    'nombre'    => trim($row->$colNombre ?? 'Empresa S.A'),
-                    'rif'       => trim($row->$colRif ?? ''),
-                    'dirlibemp' => trim($row->$colDir ?? ''),
-                    'telemp'    => trim($row->$colTel ?? ''),
-                ]
+        // 1. EMPRESAS
+        $empresas = DB::connection('sigesp')->table('public.sigesp_empresa')->get();
+        foreach ($empresas as $e) {
+            DB::table('sigesp_empresa')->updateOrInsert(
+                ['codemp' => trim($e->codemp)],
+                ['nombre' => trim($e->nombre ?? $e->nomemp), 'rif' => trim($e->rif ?? $e->rifemp), 'updated_at' => now()]
             );
         }
+        $reporte[] = count($empresas) . " empresas";
 
-        // 2. RESTO DE TABLAS (Normalmente estándar)
-       // ... dentro de tu try-catch ...
+        // 2. PERSONAL
+        $totalPersonal = 0;
+        DB::connection('sigesp')->table('public.sno_personal')->orderBy('codper', 'asc')
+            ->chunk(500, function ($personal) use (&$totalPersonal) {
+                foreach ($personal as $p) {
+                    DB::table('sno_personal')->updateOrInsert(
+                        ['codemp' => trim($p->codemp), 'codper' => trim($p->codper)],
+                        [
+                            'cedper' => trim($p->cedper), 'nomper' => trim($p->nomper), 'apeper' => trim($p->apeper),
+                            'coreleper' => trim($p->coreleper), 'fecingper' => ($p->fecingper != '1900-01-01' ? $p->fecingper : null),
+                            'updated_at' => now()
+                        ]
+                    );
+                    $totalPersonal++;
+                }
+            });
+        $reporte[] = "$totalPersonal trabajadores";
 
-       $config = [
-    [
-        'model' => new SnoNomina(),
-        'pk' => 'codnom',
-        'columns' => ['codemp', 'codnom', 'desnom', 'tipnom']
-    ],
-    [
-        'model' => new SnoPersonal(),
-        'pk' => 'cedper',
-        'columns' => ['codemp', 'codper', 'cedper', 'nomper', 'apeper', 'coreleper', 'fecingper', 'codger']
-    ],
-    [
-        'model' => new SnoHperiodo(),
-        'pk' => 'codperi',
-        // ELIMINAMOS 'cerperi' de aquí, dejamos solo el que SIGESP sí tiene
-        'columns' => ['codemp', 'codnom', 'codperi', 'fecdesper', 'fechasper', 'cerper']
-    ],
-    [
-        'model' => new SnoHpersonalnomina(),
-        'pk' => 'codper',
-        // ELIMINAMOS 'codque' de aquí si SIGESP usa 'codage'
-        'columns' => ['codemp', 'codnom', 'codper', 'codage', 'codasicar']
-    ],
-];
-
-      foreach ($config as $item) {
-    $model = $item['model'];
-    $tablaNombre = $model->getTable();
-
-    // Intentamos obtener las columnas reales, pero si falla, usamos las del config
-    $columnasExistentesEnSigesp = DB::connection('sigesp')->getSchemaBuilder()->getColumnListing($tablaNombre);
-
-    // Si SIGESP devuelve columnas, intersectamos. Si no, usamos las que definimos por defecto.
-    $colsToSelect = !empty($columnasExistentesEnSigesp)
-        ? array_intersect($item['columns'], $columnasExistentesEnSigesp)
-        : $item['columns'];
-
-    // SEGURIDAD: Si por alguna razón codemp no quedó en la lista, lo agregamos a la fuerza
-    if (!in_array('codemp', $colsToSelect)) {
-        $colsToSelect[] = 'codemp';
-    }
-
-    $dataRaw = DB::connection('sigesp')
-        ->table("public.$tablaNombre")
-        ->select($colsToSelect)
-        ->get();
-
-    $dataToInsert = [];
-
-    foreach ($dataRaw as $row) {
-        $payload = [];
-        $hasData = false;
-
-        foreach ($colsToSelect as $col) {
-            $targetCol = match($col) {
-                'codage'  => 'codque',
-                'cerper'  => 'cerperi',
-                default   => $col
-            };
-
-            $valor = $row->$col;
-            $payload[$targetCol] = is_string($valor) ? trim($valor) : $valor;
-
-            // Verificamos que realmente estemos trayendo datos aparte de codemp
-            if (!empty($payload[$targetCol]) && $targetCol !== 'codemp') {
-                $hasData = true;
-            }
+        // 3. NÓMINAS
+        $nominas = DB::connection('sigesp')->table('public.sno_nomina')->get();
+        foreach ($nominas as $n) {
+            DB::table('sno_nomina')->updateOrInsert(
+                ['codemp' => trim($n->codemp), 'codnom' => trim($n->codnom)],
+                ['desnom' => trim($n->desnom), 'updated_at' => now()]
+            );
         }
+        $reporte[] = count($nominas) . " nóminas";
 
-        // Solo agregamos al insert si la fila tiene contenido real
-        if (!empty($payload['codemp'])) {
-            $payload['created_at'] = now();
-            $payload['updated_at'] = now();
-            $dataToInsert[] = $payload;
+        // 4. PERIODOS
+        $periodos = DB::connection('sigesp')->table('public.sno_hperiodo')->select('codemp', 'codnom', 'codperi', 'fecdesper', 'fechasper', 'cerper')->get();
+        foreach ($periodos as $per) {
+            DB::table('sno_hperiodo')->updateOrInsert(
+                ['codemp' => trim($per->codemp), 'codnom' => trim($per->codnom), 'codperid' => trim($per->codperi)],
+                ['fecdesper' => $per->fecdesper, 'fechasper' => $per->fechasper, 'cerper' => $per->cerper, 'updated_at' => now()]
+            );
         }
-    }
+        $reporte[] = count($periodos) . " periodos";
 
-    if (!empty($dataToInsert)) {
-        // Insertamos en bloques para mayor seguridad
-        foreach (array_chunk($dataToInsert, 500) as $chunk) {
-            DB::table($tablaNombre)->insertOrIgnore($chunk);
-        }
-    }
-}
+        // 5. HISTORIAL PERSONAL NÓMINA
+        $totalHPN = 0;
+        DB::connection('sigesp')->table('public.sno_hpersonalnomina')->orderBy('codperi', 'desc')
+            ->chunk(1000, function ($registros) use (&$totalHPN) {
+                foreach ($registros as $reg) {
+                    DB::table('sno_hpersonalnomina')->updateOrInsert(
+                        [
+                            'codemp' => trim($reg->codemp), 'codnom' => trim($reg->codnom),
+                            'codperid' => trim($reg->codperi), 'codper' => trim($reg->codper)
+                        ],
+                        ['codtab' => trim($reg->codtab ?? '0000'), 'updated_at' => now()]
+                    );
+                    $totalHPN++;
+                }
+            });
+        $reporte[] = "$totalHPN asignaciones";
 
-        \App\Models\Setting::updateOrCreate(['key' => 'sigesp_last_sync'], ['value' => now()->format('d/m/Y h:i A')]);
+        Setting::updateOrCreate(['key' => 'sigesp_last_sync'], ['value' => now()->format('d/m/Y h:i A')]);
 
-        return redirect()->back()->with('success', 'Sincronización masiva completada con éxito.');
+        return redirect()->back()->with('success', "¡Sincronización Completa! " . implode(' | ', $reporte));
 
     } catch (\Exception $e) {
-        // Si falla, el error nos dirá ahora cuál de las otras tablas es la del problema
-        dd("ERROR TÉCNICO EN TABLA: " . ($tablaNombre ?? 'Empresa'), $e->getMessage());
+        Log::error("Error final: " . $e->getMessage());
+        return redirect()->back()->with('error', 'Error en: ' . $e->getMessage());
     }
 }
-
-
-   public function sigesp()
+public function sigesp()
     {
-        // 1. Obtenemos la última fecha de sincronización
-        $lastSync = Setting::where('key', 'sigesp_last_sync')->value('value') ?? 'Nunca';
+        // Obtenemos las configuraciones específicas de SIGESP
+      $lastSync = \App\Models\Setting::where('key', 'sigesp_last_sync')->value('value') ?? 'Nunca';
 
-        // 2. Generamos el estado de las tablas locales para la vista
-        $status = [
-            ['nombre' => 'Empresa', 'tabla' => 'sigesp_empresa', 'total' => SigespEmpresa::count()],
-            ['nombre' => 'Nóminas', 'tabla' => 'sno_nomina', 'total' => SnoNomina::count()],
-            ['nombre' => 'Personal', 'tabla' => 'sno_personal', 'total' => SnoPersonal::count()],
-            ['nombre' => 'Historial Periodos', 'tabla' => 'sno_hperiodo', 'total' => SnoHperiodo::count()],
-            ['nombre' => 'Historial Nómina', 'tabla' => 'sno_hpersonalnomina', 'total' => SnoHpersonalnomina::count()],
-        ];
-
-        // 3. Pasamos ambas variables a la vista
-        return view('admin.settings.sigesp', compact('lastSync', 'status'));
+         return view('admin.settings.sigesp', compact('lastSync'));
     }
-
-
 }
