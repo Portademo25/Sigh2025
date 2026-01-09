@@ -6,11 +6,22 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\Auth\OnboardingController;
 
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+
+
+  Route::post('/auth/check-email', [OnboardingController::class, 'checkEmail'])->name('auth.check_email');
+
+// 2. Ruta para mostrar el formulario de "Terminar Registro" (protegida por firma para seguridad básica)
+    Route::get('/auth/complete-registration', [OnboardingController::class, 'showRegisterForm'])->name('auth.complete_register');
+
+// 3. Ruta para guardar el usuario final en la tabla users
+    Route::post('/auth/store-user', [OnboardingController::class, 'storeUser'])->name('auth.store_user');
 
 Auth::routes();
 
