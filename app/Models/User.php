@@ -29,6 +29,7 @@ class User extends Authenticatable
         'rol_id',
         'estatus_id',
         'organizacion_id',
+        'codper',
     ];
 
     /**

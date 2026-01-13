@@ -6,7 +6,9 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\SettingsController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Auth\OnboardingController;
+use App\Http\Controllers\EmpleadoController;
 
 
 Route::get('/', function () {
@@ -30,9 +32,7 @@ Auth::routes();
 
     // Rutas para administradores
     Route::middleware(['role:admin'])->group(function () {
-        Route::get('/admin/dashboard', function () {
-            return view('admin.dashboard');
-        })->name('admin.dashboard');
+        Route::get('/admin/dashboard', function () {return view('admin.dashboard');})->name('admin.dashboard');
         Route::get('users', [UserController::class, 'index'])->name('admin.users.index');
         Route::get('/users/locked', [UserController::class, 'lockedUsers'])->name('admin.users.locked');
         Route::post('/users/{user}/unlock', [UserController::class, 'unlockUser'])->name('admin.users.unlock');
@@ -43,21 +43,20 @@ Auth::routes();
         Route::post('/settings/update', [SettingsController::class, 'update'])->name('admin.settings.update');
         Route::get('/sigesp', [SettingsController::class, 'sigesp'])->name('admin.settings.sigesp');
         Route::post('/sigesp/sync', [SettingsController::class, 'syncSigesp'])->name('admin.settings.sigesp.sync');
-
-});
-
-
-
+        Route::get('/settings/mail', [SettingsController::class, 'editMailSettings'])->name('admin.settings.mail');
+        Route::post('/settings/correo', [SettingsController::class, 'updateMailSettings'])->name('admin.mail.update');
+        Route::post('/settings/correo/test', [SettingsController::class, 'testMailSettings'])->name('admin.mail.test');
+        Route::get('/settings/roles', [AdminUserController::class, 'rolesIndex'])->name('admin.settings.roles');
+        Route::post('/settings/roles/{user}', [AdminUserController::class, 'updateUserRole'])->name('admin.settings.roles.update');
+    });
 
     // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {
-        Route::get('/empleado/dashboard', function () {
-            return view('empleado.dashboard');
-        })->name('empleado.dashboard');
-
-        Route::get('/empleado/profile', function () {
-            return view('empleado.profile');
-        })->name('empleado.profile');
+        Route::get('/empleado/dashboard', function () {return view('empleado.dashboard');})->name('empleado.dashboard');
+        Route::get('/empleado/profile', function () {return view('empleado.profile');})->name('empleado.profile');
+        Route::get('/reportes', [EmpleadoController::class, 'menuReportes'])->name('empleado.reportes.menu');
+        Route::get('/mis-recibos', [EmpleadoController::class, 'misRecibos'])->name('empleado.reportes.recibos');
+        Route::get('/descargar-recibo/{codnom}/{codperi}', [EmpleadoController::class, 'descargarPDF'])->name('empleado.reportes.recibo_pdf');
     });
 
     // Ruta común para ambos roles

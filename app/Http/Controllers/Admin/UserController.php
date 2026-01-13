@@ -87,4 +87,30 @@ class UserController extends Controller
 
     return redirect()->back()->with('success', "El usuario {$user->name} ha sido expulsado del sistema.");
 }
+
+public function rolesIndex()
+    {
+        $usuarios = User::select('id', 'name', 'email', 'cedula', 'rol_id')
+                        ->orderBy('name', 'asc')
+                        ->paginate(15);
+
+        return view('admin.settings.roles', compact('usuarios'));
+    }
+
+
+public function updateUserRole(Request $request, User $user)
+{
+    $request->validate([
+        'rol_id' => 'required|in:1,2', // 1: Admin, 2: Empleado
+    ]);
+
+    // Evitar que el admin se quite el rango a sí mismo por accidente
+    if ($user->id === auth()->id() && $request->rol_id != 1) {
+        return back()->withErrors(['error' => 'No puedes quitarte el permiso de Administrador a ti mismo.']);
+    }
+
+    $user->update(['rol_id' => $request->rol_id]);
+
+    return back()->with('success', "Rol de {$user->name} actualizado correctamente.");
+}
 }

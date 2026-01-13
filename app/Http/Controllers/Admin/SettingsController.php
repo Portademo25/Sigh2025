@@ -10,8 +10,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 use App\Models\SnoPersonal;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Exception;
 
 
 class SettingsController extends Controller
@@ -134,11 +137,79 @@ public function syncSigesp(Request $request)
         return redirect()->back()->with('error', 'Error en: ' . $e->getMessage());
     }
 }
-public function sigesp()
+    public function sigesp()
     {
         // Obtenemos las configuraciones específicas de SIGESP
       $lastSync = \App\Models\Setting::where('key', 'sigesp_last_sync')->value('value') ?? 'Nunca';
 
          return view('admin.settings.sigesp', compact('lastSync'));
     }
+
+    public function editMailSettings()
+{
+    // Obtenemos la configuración actual (si existe)
+    $mail = DB::table('mail_settings')->first();
+    return view('admin.settings.mail', compact('mail'));
+}
+
+public function updateMailSettings(Request $request)
+{
+    $request->validate([
+        'host' => 'required|string',
+        'port' => 'required|numeric',
+        'username' => 'required|string',
+        'password' => 'required|string',
+        'encryption' => 'required|in:tls,ssl',
+        'from_address' => 'required|email',
+        'from_name' => 'required|string',
+    ]);
+
+    $data = $request->only([
+        'host', 'port', 'username', 'password',
+        'encryption', 'from_address', 'from_name'
+    ]);
+
+    // Usamos updateOrInsert para asegurar que siempre sea el registro ID 1
+    DB::table('mail_settings')->updateOrInsert(['id' => 1], $data);
+
+    return back()->with('success', 'Servidor de correo configurado correctamente.');
+}
+   public function testMailSettings(Request $request)
+{
+    try {
+        // 1. Forzamos la carga de la configuración guardada en DB
+        $mail = DB::table('mail_settings')->first();
+
+        if (!$mail) {
+            return back()->withErrors(['test' => 'No hay configuración guardada para probar.']);
+        }
+
+        // 2. Aplicamos la configuración dinámicamente solo para este envío
+        config([
+            'mail.mailers.smtp.host' => $mail->host,
+            'mail.mailers.smtp.port' => $mail->port,
+            'mail.mailers.smtp.encryption' => $mail->encryption,
+            'mail.mailers.smtp.username' => $mail->username,
+            'mail.mailers.smtp.password' => $mail->password,
+            'mail.from.address' => $mail->from_address,
+            'mail.from.name' => $mail->from_name,
+        ]);
+
+        $userEmail = Auth::user()->email;
+
+        Mail::raw('Prueba de conexión exitosa desde el Panel Administrativo del Sistema de Nómina.', function ($message) use ($userEmail, $mail) {
+            $message->to($userEmail)
+                    ->subject('Prueba de Servidor SMTP - ' . $mail->from_name);
+        });
+
+        return back()->with('success', '¡Conexión exitosa! Revisa la bandeja de entrada de: ' . $userEmail);
+
+    } catch (Exception $e) {
+        // Esto atrapará errores de "Authentication Failed", "Connection Timeout", etc.
+        return back()->withErrors(['test' => 'Error de conexión: ' . $e->getMessage()]);
+    }
+}
+
+
+
 }

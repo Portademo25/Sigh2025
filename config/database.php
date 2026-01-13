@@ -93,8 +93,9 @@ return [
             'password' => env('DB_PASSWORD', ''),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
+            'schema' => ['public', 'sno'], // <--- AGREGA 'sno' AQUÍ
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            'search_path' => 'sno, public',
             'sslmode' => 'prefer',
         ],
 
@@ -113,15 +114,17 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
-        'sigesp' => [
-        'driver'   => 'pgsql', // O 'informix' según tu versión de SIGESP
-        'host'     => env('SIGESP_DB_HOST', '10.0.0.x'),
-        'database' => env('SIGESP_DB_DATABASE', 'sigesp'),
-        'username' => env('SIGESP_DB_USERNAME', 'usuario'),
-        'password' => env('SIGESP_DB_PASSWORD', '123456'),
-        'charset'  => 'utf8',
-        'prefix'   => '',
-        'schema'   => 'sigesp',
+       'sigesp' => [
+        'driver' => 'pgsql',
+        'host' => env('DB_SIGESP_HOST', '192.168.6.126'),
+        'port' => env('DB_SIGESP_PORT', '5432'),
+        'database' => env('DB_SIGESP_DATABASE', 'prueba_fona_2025'),
+        'username' => env('DB_SIGESP_USERNAME', 'postgres'),
+        'password' => env('DB_SIGESP_PASSWORD', '123456'),
+        'charset' => 'utf8',
+        'prefix' => '',
+        'schema' => 'public', // O 'sno' según lo que descubrimos antes
+        'sslmode' => 'prefer',
     ],
 
     ],
