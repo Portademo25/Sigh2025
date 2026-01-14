@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Auth\OnboardingController;
 use App\Http\Controllers\EmpleadoController;
+use App\Http\Controllers\Empleado\ConstanciaController;
 
 
 Route::get('/', function () {
@@ -16,7 +17,8 @@ Route::get('/', function () {
 });
 
 
-
+    Route::get('/verificar/documento/{token}', [ConstanciaController::class, 'verificarPublico'])
+    ->name('constancia.verificar');
   Route::post('/auth/check-email', [OnboardingController::class, 'checkEmail'])->name('auth.check_email');
 
 // 2. Ruta para mostrar el formulario de "Terminar Registro" (protegida por firma para seguridad básica)
@@ -48,17 +50,23 @@ Auth::routes();
         Route::post('/settings/correo/test', [SettingsController::class, 'testMailSettings'])->name('admin.mail.test');
         Route::get('/settings/roles', [AdminUserController::class, 'rolesIndex'])->name('admin.settings.roles');
         Route::post('/settings/roles/{user}', [AdminUserController::class, 'updateUserRole'])->name('admin.settings.roles.update');
+        Route::get('/admin/reportes/constancias', [ConstanciaController::class, 'reporteAdmin'])->name('admin.reporte.constancias')->middleware('auth');
+        Route::get('/admin/reportes', function () {return view('admin.reportes.menu');
+})->name('admin.reportes.menu')->middleware('auth');
     });
-
-    // Rutas para empleados
+// Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {
         Route::get('/empleado/dashboard', function () {return view('empleado.dashboard');})->name('empleado.dashboard');
         Route::get('/empleado/profile', function () {return view('empleado.profile');})->name('empleado.profile');
         Route::get('/reportes', [EmpleadoController::class, 'menuReportes'])->name('empleado.reportes.menu');
         Route::get('/mis-recibos', [EmpleadoController::class, 'misRecibos'])->name('empleado.reportes.recibos');
         Route::get('/descargar-recibo/{codnom}/{codperi}', [EmpleadoController::class, 'descargarPDF'])->name('empleado.reportes.recibo_pdf');
+        Route::get('/empleado/constancia', [ConstanciaController::class, 'pdfConstancia'])
+         ->name('empleado.reportes.constancia_pdf');
     });
+
 
     // Ruta común para ambos roles
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');
 });
+

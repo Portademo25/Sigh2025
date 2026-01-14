@@ -38,7 +38,7 @@
                     </div>
                     <h5 class="card-title fw-bold">Constancia de Trabajo</h5>
                     <p class="card-text text-muted small">Genera tu constancia laboral con sello digital y firma autorizada.</p>
-                    <a href="#" class="btn btn-primary w-100 shadow-sm">
+                    <a href="{{ route('empleado.reportes.constancia_pdf') }}" class="btn btn-primary w-100 shadow-sm">
                         Generar Constancia
                     </a>
                 </div>

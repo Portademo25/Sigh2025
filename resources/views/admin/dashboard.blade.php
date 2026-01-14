@@ -24,7 +24,7 @@
                                 <div class="card-body">
                                     <h5 class="card-title">Reportes</h5>
                                     <p class="card-text">Ver reportes del sistema</p>
-                                    <a href="#" class="btn btn-light">Ir a</a>
+                                    <a href="{{ route('admin.reportes.menu') }}" class="btn btn-light">Ir a</a>
                                 </div>
                             </div>
                         </div>
