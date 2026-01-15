@@ -53,7 +53,7 @@
                     </div>
                     <h5 class="card-title fw-bold">Planilla ARC</h5>
                     <p class="card-text text-muted small">Comprobante de retenciones de ISLR acumulado durante el año fiscal.</p>
-                    <a href="#" class="btn btn-warning w-100 text-dark fw-bold">
+                    <a href="{{ route('empleado.reportes.arc_index') }}" class="btn btn-warning w-100 text-dark fw-bold">
                         Consultar ARC
                     </a>
                 </div>
