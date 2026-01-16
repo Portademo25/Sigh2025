@@ -9,6 +9,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Str; // Importante para el token
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use App\Http\Controllers\Admin\AdminReporteController;
 
 class ConstanciaController extends Controller
 {
@@ -112,6 +113,13 @@ class ConstanciaController extends Controller
                 ->generate($urlVerificacion));
 
             // 8. Generación del PDF
+           // Busca la línea donde registras y asegúrate de que sea así:
+
+    AdminReporteController::registrarDescarga(
+    $personal,
+    'Constancia de Trabajo',
+    "Token: " . substr($token, 0, 8)
+);
             $nombreArchivo = "Constancia de Trabajador " . $personal->nomper . " " . $personal->apeper . ".pdf";
 
             return Pdf::loadView('empleado.reportes.constancia_pdf', $data)
@@ -152,6 +160,9 @@ class ConstanciaController extends Controller
         ->first();
 
     $activo = ($personalSigesp && $personalSigesp->staper == '1');
+
+
+
 
     // 4. Retornamos la VISTA EXITOSA con los datos del registro
     return view('publico.verificacion_exitosa', [

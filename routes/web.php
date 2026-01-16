@@ -13,6 +13,8 @@ use App\Http\Controllers\Empleado\ConstanciaController;
 use App\Http\Controllers\Empleado\ArcController;
 use App\Http\Controllers\Empleado\IvssController;
 use App\Http\Controllers\Empleado\PerfilController;
+use App\Http\Controllers\Admin\AdminReporteController;
+use App\Http\Controllers\Admin\DashboardController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -39,7 +41,7 @@ Auth::routes();
 
     // Rutas para administradores
     Route::middleware(['role:admin'])->group(function () {
-        Route::get('/admin/dashboard', function () {return view('admin.dashboard');})->name('admin.dashboard');
+       Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
         Route::get('users', [UserController::class, 'index'])->name('admin.users.index');
         Route::get('/users/locked', [UserController::class, 'lockedUsers'])->name('admin.users.locked');
         Route::post('/users/{user}/unlock', [UserController::class, 'unlockUser'])->name('admin.users.unlock');
@@ -58,6 +60,11 @@ Auth::routes();
         Route::get('/admin/reportes/constancias', [ConstanciaController::class, 'reporteAdmin'])->name('admin.reporte.constancias')->middleware('auth');
         Route::get('/admin/reportes', function () {return view('admin.reportes.menu');})->name('admin.reportes.menu')->middleware('auth');
         Route::get('/admin/reportes/arc', [ArcController::class, 'index'])->name('admin.reportes.arc');
+        Route::get('/historial-descargas', [AdminReporteController::class, 'historialDescargas'])->name('admin.historial.descargas');
+        Route::get('/admin/security', [SettingsController::class, 'securityIndex'])->name('admin.security.index');
+        Route::post('/admin/security/action', [SettingsController::class, 'handleSecurityAction'])->name('admin.security.action');
+        Route::get('/admin/security/policies', [SettingsController::class, 'policiesIndex'])->name('admin.security.policies');
+        Route::post('/admin/security/policies/update', [SettingsController::class, 'updatePolicies'])->name('admin.security.policies.update');
     });
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {

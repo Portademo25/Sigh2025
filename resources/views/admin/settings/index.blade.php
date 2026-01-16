@@ -15,16 +15,16 @@
                         <div class="row">
                             <div class="col-md-4 border-end">
                                 <div class="nav flex-column nav-pills" id="v-pills-tab" role="tablist">
-                                    <button class="nav-link active" data-bs-toggle="pill" data-bs-target="#security">🛡️ Seguridad</button>
+                                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#security"><a href="{{ route('admin.security.index') }}" class="btn btn-light">🛡️ Seguridad</a></button>
                                     <button class="nav-link" data-bs-toggle="pill" data-bs-target="#general">💻 General</button>
                                     <button class="nav-link" data-bs-toggle="pill" data-bs-target="#roles"><a href="{{ route('admin.settings.roles') }}" class="btn btn-light">👥 Roles y Permisos</a></button>
                                     <button class="nav-link" data-bs-toggle="pill" data-bs-target="#sigesp"><a href="{{ route('admin.settings.sigesp') }}" class="btn btn-light">🔗 Sincronización con SIGESP</a></button>
-                                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#sigesp"><a href="{{ route('admin.settings.mail') }}" class="btn btn-light"> Configuracion de para Enviar Correo</a></button>
+                                    <button class="nav-link" data-bs-toggle="pill" data-bs-target="#mail"><a href="{{ route('admin.settings.mail') }}" class="btn btn-light"> Configuracion de para Enviar Correo</a></button>
                                 </div>
                             </div>
 
                             <div class="col-md-8">
-                                <div class="tab-content p-3">
+                                {{-- <div class="tab-content p-3">
                                     <div class="tab-pane fade show active" id="security">
                                         <h5>Parámetros de Acceso</h5>
                                         <hr>
@@ -44,9 +44,9 @@
                                               value="{{ $settings['app_name'] ?? config('app.name') }}">
                                         </div>
 
-                                    </div>
+                                    </div> --}}
 
-                                    <div class="tab-pane fade" id="general">
+                                    {{-- <div class="tab-pane fade" id="general">
                                         <h5>Información del Sitio</h5>
                                         <hr>
                                         <div class="mb-3">
@@ -71,7 +71,7 @@
 
                         <div class="card-footer bg-transparent text-end border-top-0">
                             <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-                        </div>
+                        </div> --}}
                     </form>
                 </div>
             </div>

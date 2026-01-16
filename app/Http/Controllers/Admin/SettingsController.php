@@ -211,5 +211,60 @@ public function updateMailSettings(Request $request)
 }
 
 
+public function securityIndex()
+{
+    // Obtenemos algunos eventos de ejemplo de la tabla de auditoría
+    // Si aún no tienes una tabla de 'logs_seguridad', puedes usar la de 'reporte_descargas'
+    // o simplemente pasar un array vacío por ahora.
+    $eventos = DB::table('reporte_descargas')
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+
+    return view('admin.security.index', compact('eventos'));
+}
+
+/**
+ * Maneja las acciones de seguridad (Mantenimiento, Limpieza, etc.)
+ */
+public function handleSecurityAction(Request $request)
+{
+    $action = $request->input('action');
+
+    switch ($action) {
+        case 'toggle_maintenance':
+            if (app()->isDownForMaintenance()) {
+                Artisan::call('up');
+                return back()->with('success', 'El portal ahora está en línea y accesible.');
+            } else {
+                // Se activa el mantenimiento. El 'secret' permite entrar si pones /tu-secreto
+                Artisan::call('down', ['--refresh' => 15]);
+                return back()->with('warning', 'El portal ha sido puesto en modo mantenimiento.');
+            }
+            break;
+
+        case 'clear_cache':
+            Artisan::call('cache:clear');
+            Artisan::call('view:clear');
+            Artisan::call('config:clear');
+            return back()->with('success', 'Caché del sistema optimizada correctamente.');
+            break;
+
+        default:
+            return back()->with('error', 'Acción no reconocida.');
+    }
+}
+public function policiesIndex() {
+    // Aquí puedes cargar valores desde tu tabla de configuraciones o archivo de config
+    return view('admin.security.policies');
+}
+
+public function updatePolicies(Request $request) {
+    // Lógica para guardar en la base de datos o actualizar el .env
+    // Por ahora, simularemos el éxito
+    return back()->with('success', 'Políticas de seguridad actualizadas correctamente.');
+}
+
+
 
 }

@@ -1,46 +1,204 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
+<div class="container-fluid py-4">
     <div class="row justify-content-center">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Dashboard - Administrativo</h4>
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="bi bi-speedometer2 me-2"></i> Dashboard Administrativo</h4>
+                    <span class="badge bg-white text-primary">SIGESP Conectado</span>
                 </div>
-                <div class="card-body">
-                    <div class="row">
+
+                <div class="card-body bg-light">
+
+                    <div class="card shadow-sm border-0 mb-4">
+                        <div class="card-body py-3">
+                            <form action="{{ route('admin.dashboard') }}" method="GET" class="row g-3 align-items-end">
+                                <div class="col-md-3 col-sm-6">
+                                    <label class="form-label small fw-bold text-muted">Desde:</label>
+                                    <input type="date" name="fecha_inicio" value="{{ $fechaInicio }}" class="form-control form-control-sm shadow-sm">
+                                </div>
+                                <div class="col-md-3 col-sm-6">
+                                    <label class="form-label small fw-bold text-muted">Hasta:</label>
+                                    <input type="date" name="fecha_fin" value="{{ $fechaFin }}" class="form-control form-control-sm shadow-sm">
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="submit" class="btn btn-primary btn-sm px-3 shadow-sm">
+                                        <i class="bi bi-filter me-1"></i> Filtrar Panel
+                                    </button>
+                                    <a href="{{ route('admin.dashboard') }}" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
+                                        <i class="bi bi-arrow-clockwise me-1"></i> Limpiar
+                                    </a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
                         <div class="col-md-4">
-                            <div class="card text-white bg-success mb-3">
-                                <div class="card-body">
-                                    <h5 class="card-title">Gestión de Usuarios</h5>
-                                    <p class="card-text">Administrar usuarios del sistema</p>
-                                    <a href="{{ route('admin.users.index') }}" class="btn btn-light">Ir a</a>
+                            <div class="card border-0 shadow-sm text-white bg-success h-100">
+                                <div class="card-body d-flex flex-column justify-content-between">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h5 class="card-title mb-1">Usuarios</h5>
+                                            <p class="small opacity-75">Base de datos local</p>
+                                        </div>
+                                        <i class="bi bi-people fs-1 opacity-50"></i>
+                                    </div>
+                                    <h2 class="fw-bold mb-0">{{ $usuariosActivos ?? '0' }}</h2>
+                                    <a href="{{ route('admin.users.index') }}" class="btn btn-light btn-sm w-100 mt-3 text-success fw-bold">Gestionar Usuarios</a>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="card text-white bg-info mb-3">
-                                <div class="card-body">
-                                    <h5 class="card-title">Reportes</h5>
-                                    <p class="card-text">Ver reportes del sistema</p>
-                                    <a href="{{ route('admin.reportes.menu') }}" class="btn btn-light">Ir a</a>
+                            <div class="card border-0 shadow-sm text-white bg-info h-100">
+                                <div class="card-body d-flex flex-column justify-content-between">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h5 class="card-title mb-1">Descargas del Periodo</h5>
+                                            <p class="small opacity-75">Hoy: {{ $totalHoy ?? 0 }}</p>
+                                        </div>
+                                        <i class="bi bi-cloud-download fs-1 opacity-50"></i>
+                                    </div>
+                                    <h2 class="fw-bold mb-0">{{ $totalPeriodo ?? $totalHoy ?? '0' }}</h2>
+                                    <a href="{{ route('admin.reportes.menu') }}" class="btn btn-light btn-sm w-100 mt-3 text-info fw-bold">Ver Reportes</a>
                                 </div>
                             </div>
                         </div>
                         <div class="col-md-4">
-                            <div class="card text-white bg-warning mb-3">
-                                <div class="card-body">
-                                    <h5 class="card-title">Configuración</h5>
-                                    <p class="card-text">Configurar el sistema</p>
-                                    <a href="{{ route('admin.settings.index') }}" class="btn btn-light">Ir a</a>
+                            <div class="card border-0 shadow-sm text-white bg-warning h-100">
+                                <div class="card-body d-flex flex-column justify-content-between text-dark">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h5 class="card-title mb-1">Configuración</h5>
+                                            <p class="small opacity-75">Parámetros globales</p>
+                                        </div>
+                                        <i class="bi bi-gear fs-1 opacity-50"></i>
+                                    </div>
+                                    <p class="small mb-0 fw-bold">Módulo de Auditoría Activo</p>
+                                    <a href="{{ route('admin.settings.index') }}" class="btn btn-dark btn-sm w-100 mt-3 shadow">Ajustes del Sistema</a>
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
+
+                    <div class="row">
+                        <div class="col-lg-7">
+                            <div class="card border-0 shadow-sm mb-4 h-100">
+                                <div class="card-header bg-white fw-bold py-3">
+                                    <i class="bi bi-pie-chart me-2 text-primary"></i> Distribución de Documentos
+                                </div>
+                                <div class="card-body d-flex align-items-center justify-content-center">
+                                    @if(isset($labelsPie) && count($labelsPie) > 0)
+                                        <div style="width: 100%; height: 300px;">
+                                            <canvas id="chartPie"></canvas>
+                                        </div>
+                                    @else
+                                        <div class="text-center py-5">
+                                            <i class="bi bi-graph-up-arrow display-4 text-light"></i>
+                                            <p class="text-muted mt-3">No hay datos en el rango seleccionado</p>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-5">
+                            <div class="card border-0 shadow-sm mb-4 h-100">
+                                <div class="card-header bg-white fw-bold py-3 text-primary">
+                                    <i class="bi bi-clock-history me-2"></i> Actividad Reciente
+                                </div>
+                                <div class="card-body p-0">
+                                    <ul class="list-group list-group-flush">
+                                        @forelse($ultimasDescargas ?? [] as $descarga)
+                                        <li class="list-group-item px-3 py-3 small border-0 border-bottom">
+                                            <div class="d-flex w-100 justify-content-between align-items-start">
+                                                <div>
+                                                    <span class="fw-bold text-dark d-block">{{ $descarga->nombre_empleado }}</span>
+                                                    <span class="text-muted">{{ $descarga->tipo_reporte }}</span>
+                                                </div>
+                                                <small class="badge bg-light text-muted border fw-normal">
+                                                    {{ \Carbon\Carbon::parse($descarga->created_at)->diffForHumans() }}
+                                                </small>
+                                            </div>
+                                        </li>
+                                        @empty
+                                        <li class="list-group-item text-center py-5 text-muted">
+                                            <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
+                                            Sin actividad registrada
+                                        </li>
+                                        @endforelse
+                                    </ul>
+                                </div>
+                                <div class="card-footer bg-white text-center py-3">
+                                    <a href="{{ route('admin.historial.descargas') }}" class="text-decoration-none small fw-bold">
+                                        Ver Historial Completo <i class="bi bi-arrow-right ms-1"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div> </div>
         </div>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const labelsData = {!! json_encode($labelsPie ?? []) !!};
+        const valuesData = {!! json_encode($datosPie ?? []) !!};
+
+        if (labelsData.length > 0) {
+            const ctxPie = document.getElementById('chartPie').getContext('2d');
+            new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: labelsData,
+                    datasets: [{
+                        data: valuesData,
+                        backgroundColor: [
+                            '#198754', // Verde
+                            '#0dcaf0', // Cian
+                            '#ffc107', // Amarillo
+                            '#0d6efd', // Azul
+                            '#dc3545', // Rojo
+                            '#6610f2'  // Morado
+                        ],
+                        hoverOffset: 20,
+                        borderWidth: 5,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 25,
+                                usePointStyle: true,
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            padding: 12,
+                            boxPadding: 8
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+    });
+</script>
+
+<style>
+    .card { transition: transform 0.2s ease-in-out; }
+    .card:hover { transform: translateY(-3px); }
+    .list-group-item:hover { bg-color: #f8f9fa; }
+    .form-control-sm:focus { border-color: #0d6efd; box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15); }
+</style>
 @endsection

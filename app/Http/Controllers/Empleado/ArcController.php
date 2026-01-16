@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Http\Request;
 
+
 class ArcController extends Controller
 {
     public function indexArc()
@@ -50,9 +51,16 @@ $agente = [
     'cargo'     => $cargoRepresentante // Nueva variable para el cargo
 ];
         // 2. Datos del Trabajador
-        $personal = DB::connection('sigesp')->table('sno_personal')
-            ->select('nomper', 'apeper', 'cedper')
-            ->where('codper', $v_codper)->first();
+      $personal = DB::connection('sigesp')->table('sno_personal')
+    ->select('nomper', 'apeper', 'cedper', 'codper')
+    ->where('codper', $v_codper)
+    ->first(); // Esto devuelve un OBJETO o NULL
+
+// VALIDACIÓN ANTIFALLO: Si SIGESP no encuentra la ficha, evitamos que el PDF explote
+if (!$personal) {
+    // Si eres empleado, te regresa con error. Si eres admin, te avisa.
+    return redirect()->back()->with('error', "No se encontró la ficha del trabajador con código: $v_codper en SIGESP.");
+}
 
         // 3. Consulta de Remuneraciones y Retenciones (Ajustada)
       $nominasExcluidas = [
@@ -62,14 +70,7 @@ $agente = [
 ];
 
 // Definimos exactamente las nóminas que SI aplican para el AR-C
-$nominasARC = [
-    // Nóminas de Sueldos (Fijos, Obreros, Alto Nivel, etc.)
-    '0001', '0002', '0003', '0004', '0005', '0006',
-    // Nóminas de Bonos Vacacionales
-    '0015', '0016', '0017', '0018', '0019', '0020',
-    // Nóminas de Bonos de Fin de Año (Aguinaldos)
-    '0051', '0052', '0053', '0054', '0055', '0056'
-];
+$nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0015', '0016', '0017', '0018', '0019', '0020', '0051', '0052', '0053', '0054', '0055', '0056'];
 
 $detalles = DB::connection('sigesp')
     ->table('sno_hsalida as hs')
@@ -79,22 +80,12 @@ $detalles = DB::connection('sigesp')
     })
     ->select(
         DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
-
-        // ASIGNACIONES: Solo de las nóminas que aplican AR-C
-        DB::raw("SUM(CASE
-            WHEN hs.tipsal = 'A'
-            AND hs.codnom IN ('" . implode("','", $nominasARC) . "')
-            THEN hs.valsal ELSE 0 END) as asignacion"),
-
-        // RETENCIONES ISLR (Código 0000000001)
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000002' THEN hs.valsal ELSE 0 END) as monto_inces"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000500' THEN hs.valsal ELSE 0 END) as monto_sso"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000501' THEN hs.valsal ELSE 0 END) as monto_pie"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000502' THEN hs.valsal ELSE 0 END) as monto_faov"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000503' THEN hs.valsal ELSE 0 END) as monto_pension"),
-
-        // OTRAS RETENCIONES (SSO, PIE, FAOV) - Solo aporte trabajador (P1)
-
+        // Usamos ABS() para que los montos negativos de SIGESP salgan positivos en el reporte
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'A' AND hs.codnom IN ('" . implode("','", $nominasARC) . "') THEN hs.valsal ELSE 0 END) as asignacion"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000500' THEN ABS(hs.valsal) ELSE 0 END) as monto_sso"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie")
     )
     ->where('hs.codper', $v_codper)
     ->whereYear('hp.fecdesper', $ano)
@@ -124,6 +115,8 @@ $data = [
     'logoEnte'      => $logoEnte,
     'fecha'    => date('d/m/Y')
 ];
+
+
 
 return Pdf::loadView('empleado.reportes.arc_pdf', $data)
     ->setPaper('letter', 'portrait')
