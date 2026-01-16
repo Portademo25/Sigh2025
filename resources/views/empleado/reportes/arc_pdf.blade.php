@@ -131,10 +131,7 @@
                     <tr><td>Fondo Pensión</td><td class="text-right">{{ number_format($detalles->sum('monto_pension'), 2, ',', '.') }}</td></tr>
                 </table>
             </td>
-            <td width="10%"></td>
-            <td width="45%" class="text-center" style="vertical-align: bottom;">
-                <img src="data:image/svg+xml;base64,{{ $qrCode }}" width="60">
-                <div style="font-size: 7px; margin-top: 5px;">Escanee para verificar validez</div>
+
             </td>
         </tr>
     </table>

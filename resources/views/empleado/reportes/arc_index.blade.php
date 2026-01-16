@@ -10,18 +10,19 @@
                 </div>
                 <div class="card-body p-4">
                     <p class="text-muted">
-                        Seleccione el año fiscal correspondiente para descargar su Comprobante de Retención de ISLR (ARC).
+                        Descargue su Comprobante de Retención de ISLR (ARC) correspondiente al año fiscal en curso.
                     </p>
 
-                    <form id="formArc" class="mt-4">
-                        <div class="form-group">
-                            <label for="ano" class="font-weight-bold">Año Fiscal:</label>
-                            <select name="ano" id="ano" class="form-control form-control-lg">
-                                @foreach($anios as $a)
-                                    <option value="{{ $a }}">{{ $a }}</option>
-                                @endforeach
-                            </select>
-                        </div>
+                    <div class="form-group">
+    <label for="ano" class="font-weight-bold">Año Fiscal:</label>
+    <select name="ano" id="ano" class="form-control form-control-lg">
+        {{-- Año Actual --}}
+        <option value="{{ date('Y') }}">{{ date('Y') }} (Año en curso)</option>
+
+        {{-- Año Anterior --}}
+        <option value="{{ date('Y') - 1 }}">{{ date('Y') - 1 }} (Año anterior)</option>
+    </select>
+</div>
 
                         <div class="mt-4">
                             <button type="button" onclick="descargarArc()" class="btn btn-success btn-block btn-lg shadow">
@@ -42,7 +43,6 @@
     function descargarArc() {
         const ano = document.getElementById('ano').value;
         if(ano) {
-            // Redirige a la ruta que ya creamos: /empleado/reporte/arc/{ano}
             window.location.href = `/empleado/reporte/arc/${ano}`;
         }
     }

@@ -8,14 +8,16 @@ use Illuminate\Support\Facades\Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use Illuminate\Http\Request;
 
 class ArcController extends Controller
 {
     public function indexArc()
     {
-        $anioActual = date('Y');
-        $anios = range($anioActual, $anioActual - 5);
-        return view('empleado.reportes.arc_index', compact('anios'));
+        $anoActual = date('Y');
+    $anios = [$anoActual, $anoActual - 1];
+
+    return view('empleado.reportes.arc_index', compact('anios'));
     }
 
   public function generarArc($ano)
@@ -24,7 +26,10 @@ class ArcController extends Controller
     $v_codper = str_pad($user->codper, 10, "0", STR_PAD_LEFT);
     $codigoIslr = str_pad("1", 10, "0", STR_PAD_LEFT);
 
+
     try {
+
+// 1. Consultamos todas las columnas de la tabla sno_nomina
 
         // 1. Datos del Agente de Retención
         // 1. Datos del Agente de Retención
@@ -50,7 +55,23 @@ $agente = [
             ->where('codper', $v_codper)->first();
 
         // 3. Consulta de Remuneraciones y Retenciones (Ajustada)
-       $detalles = DB::connection('sigesp')
+      $nominasExcluidas = [
+    '0009', '0010', '0011', '0013', '0014', // Alimentación
+    '0021', '0022', '0023', '0024', '0025', '0026', // Becas
+    '0063', '0064', '0065', '0066', '0067', '0068'  // Juguetes
+];
+
+// Definimos exactamente las nóminas que SI aplican para el AR-C
+$nominasARC = [
+    // Nóminas de Sueldos (Fijos, Obreros, Alto Nivel, etc.)
+    '0001', '0002', '0003', '0004', '0005', '0006',
+    // Nóminas de Bonos Vacacionales
+    '0015', '0016', '0017', '0018', '0019', '0020',
+    // Nóminas de Bonos de Fin de Año (Aguinaldos)
+    '0051', '0052', '0053', '0054', '0055', '0056'
+];
+
+$detalles = DB::connection('sigesp')
     ->table('sno_hsalida as hs')
     ->join('sno_hperiodo as hp', function($join) {
         $join->on('hs.codnom', '=', 'hp.codnom')
@@ -59,37 +80,20 @@ $agente = [
     ->select(
         DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
 
-        // ASIGNACIONES (Ya te funciona)
+        // ASIGNACIONES: Solo de las nóminas que aplican AR-C
         DB::raw("SUM(CASE
-WHEN hs.tipsal = 'A'
-AND (
--- Rango 1: Sueldos y Primas Base
-(hs.codnom BETWEEN '0001' AND '0006')
-OR
--- Rango 2: Nóminas de Vacaciones (Solo si aplica)
-(hs.codnom BETWEEN '0015' AND '0020')
-OR
--- Rango 3: Nóminas de Ajuste/Aumento para el último trimestre
--- (Aquí es donde suelen estar los montos para llegar a 1092 y 1749)
-(hs.codnom IN ('0051', '0056'))
-)
--- IMPORTANTE: Excluimos explícitamente los Aguinaldos para que no se inflen
--- Si Oct/Dic deben ser 1092,30, no deben sumar las nóminas 0060-0066
+            WHEN hs.tipsal = 'A'
+            AND hs.codnom IN ('" . implode("','", $nominasARC) . "')
+            THEN hs.valsal ELSE 0 END) as asignacion"),
 
-THEN hs.valsal
-ELSE 0
-END) as asignacion"),
-
-        // RETENCIONES INDIVIDUALES (Usando LPAD para asegurar los 10 dígitos)
-       DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000002' THEN hs.valsal ELSE 0 END) as monto_inces"),
+        // RETENCIONES ISLR (Código 0000000001)
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000002' THEN hs.valsal ELSE 0 END) as monto_inces"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000500' THEN hs.valsal ELSE 0 END) as monto_sso"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000501' THEN hs.valsal ELSE 0 END) as monto_pie"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000502' THEN hs.valsal ELSE 0 END) as monto_faov"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000503' THEN hs.valsal ELSE 0 END) as monto_pension"),
 
-        // TOTAL OTRAS RETENCIONES (Suma de los 5 conceptos anteriores)
-
-        // ISLR (Si el ISLR sigue siendo 'R', lo dejamos así, si es P1 cámbialo también)
+        // OTRAS RETENCIONES (SSO, PIE, FAOV) - Solo aporte trabajador (P1)
 
     )
     ->where('hs.codper', $v_codper)
@@ -129,4 +133,24 @@ return Pdf::loadView('empleado.reportes.arc_pdf', $data)
         return dd("Error: " . $e->getMessage());
     }
 }
+public function index(Request $request)
+    {
+        $buscar = $request->input('buscar');
+
+        // Listado de personal para que el admin seleccione
+        $personal = DB::connection('sigesp')->table('sno_personal')
+            ->select('cedper', 'nomper', 'apeper', 'codper')
+            ->when($buscar, function ($query, $buscar) {
+                return $query->where('cedper', 'like', "%{$buscar}%")
+                             ->orWhere('nomper', 'like', "%{$buscar}%")
+                             ->orWhere('apeper', 'like', "%{$buscar}%");
+            })
+            ->limit(10)
+            ->get();
+
+        $anios = [date('Y'), date('Y') - 1];
+
+        return view('admin.reportes.index_arc', compact('personal', 'anios'));
+    }
+
 }

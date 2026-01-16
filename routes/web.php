@@ -11,6 +11,8 @@ use App\Http\Controllers\Auth\OnboardingController;
 use App\Http\Controllers\EmpleadoController;
 use App\Http\Controllers\Empleado\ConstanciaController;
 use App\Http\Controllers\Empleado\ArcController;
+use App\Http\Controllers\Empleado\IvssController;
+use App\Http\Controllers\Empleado\PerfilController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -55,18 +57,24 @@ Auth::routes();
         Route::post('/settings/roles/{user}', [AdminUserController::class, 'updateUserRole'])->name('admin.settings.roles.update');
         Route::get('/admin/reportes/constancias', [ConstanciaController::class, 'reporteAdmin'])->name('admin.reporte.constancias')->middleware('auth');
         Route::get('/admin/reportes', function () {return view('admin.reportes.menu');})->name('admin.reportes.menu')->middleware('auth');
+        Route::get('/admin/reportes/arc', [ArcController::class, 'index'])->name('admin.reportes.arc');
     });
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {
         Route::get('/empleado/dashboard', function () {return view('empleado.dashboard');})->name('empleado.dashboard');
-        Route::get('/empleado/profile', function () {return view('empleado.profile');})->name('empleado.profile');
+        Route::get('/mi-perfil', [PerfilController::class, 'index'])->name('empleado.perfil');
         Route::get('/reportes', [EmpleadoController::class, 'menuReportes'])->name('empleado.reportes.menu');
         Route::get('/mis-recibos', [EmpleadoController::class, 'misRecibos'])->name('empleado.reportes.recibos');
         Route::get('/descargar-recibo/{codnom}/{codperi}', [EmpleadoController::class, 'descargarPDF'])->name('empleado.reportes.recibo_pdf');
         Route::get('/empleado/constancia', [ConstanciaController::class, 'pdfConstancia'])->name('empleado.reportes.constancia_pdf');});
         Route::get('/empleado/reporte/arc/{ano}', [ArcController::class, 'generarArc'])->name('arc.pdf')->middleware('auth');
         Route::get('/empleado/reporte/arc', [ArcController::class, 'indexArc'])->name('empleado.reportes.arc_index')->middleware('auth');
+       Route::get('/reportes/ivss', [IvssController::class, 'index'])
+    ->name('empleado.reportes.ivss_index');
 
+// Ruta para generar el PDF (ya la teníamos, pero asegúrate del nombre)
+Route::get('/reportes/ivss/descargar/{ano}', [IvssController::class, 'generar14100'])
+    ->name('empleado.reportes.ivss_14100');
 
     // Ruta común para ambos roles
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');

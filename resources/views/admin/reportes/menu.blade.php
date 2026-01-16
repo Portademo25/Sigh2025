@@ -50,9 +50,9 @@
                     </div>
                 </div>
                 <div class="card-footer bg-white border-0">
-                    <button class="btn btn-outline-success btn-block btn-sm" disabled>
-                        Próximamente
-                    </button>
+                     <a href="{{ route('admin.reportes.arc') }}" class="btn btn-primary btn-block btn-sm">
+                        Abrir Reporte <i class="fas fa-arrow-right ml-1"></i>
+                    </a>
                 </div>
             </div>
         </div>

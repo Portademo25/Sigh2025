@@ -15,7 +15,7 @@
                                 <div class="card-body">
                                     <h5 class="card-title">Mi Perfil</h5>
                                     <p class="card-text">Ver y editar mi perfil</p>
-                                    <a href="{{ route('empleado.profile') }}" class="btn btn-light">Acceder</a>
+                                    <a href="{{ route('empleado.perfil') }}" class="btn btn-light">Acceder</a>
                                 </div>
                             </div>
                         </div>
