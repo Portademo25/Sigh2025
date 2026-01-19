@@ -23,48 +23,51 @@ class OnboardingController extends Controller
 
 public function checkEmail(Request $request)
 {
-    // 1. Validamos que sea un email real
     $request->validate(['email' => 'required|email']);
     $email = strtolower(trim($request->email));
 
-    // 2. ¿Ya existe en nuestra tabla de usuarios de Laravel?
-    $user = \App\Models\User::where('email', $email)->first();
+    // 1. ¿Existe en la tabla local de Laravel?
+    $user = User::where('email', $email)->first();
 
     if ($user) {
-        // Si es Admin (rol_id 1), lo mandamos al login normal
-        // Si es empleado (rol_id 2), verificamos que siga en SIGESP
+        // Validación de bloqueo permanente
+        if ($user->is_locked) {
+            return back()->withErrors(['email' => 'Esta cuenta está bloqueada permanentemente por seguridad.']);
+        }
+
+        // Si es empleado, verificar vigencia en SIGESP
         if ($user->rol_id != 1) {
-            $sigueActivo = \Illuminate\Support\Facades\DB::table('sno_personal')
+            $sigueActivo = DB::connection('sigesp')->table('sno_personal')
                 ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
                 ->exists();
 
             if (!$sigueActivo) {
-                return back()->withErrors(['email' => 'Su acceso ha sido desactivado por nómina.']);
+                return back()->withErrors(['email' => 'Acceso denegado: Su ficha no está activa en la nómina de SIGESP.']);
             }
         }
 
-        return redirect()->route('login')->withInput(['email' => $email])
-                         ->with('info', 'Hola de nuevo. Ingresa tu contraseña.');
+        // --- LA CLAVE ESTÁ AQUÍ ---
+        // Redirigimos al login pasando 'user_verified' para que la vista muestre la contraseña
+        return redirect()->route('login')
+                         ->withInput(['email' => $email])
+                         ->with('user_verified', true);
     }
 
-    // 3. Si NO existe en Laravel, lo buscamos en SIGESP para que se registre
-    $personal = \Illuminate\Support\Facades\DB::table('sno_personal')
+    // 2. Si es NUEVO: Buscar en SIGESP para permitir el registro inicial
+    $personal = DB::connection('sigesp')->table('sno_personal')
         ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
         ->first();
 
     if ($personal) {
-        // Guardamos datos clave en la sesión para el siguiente paso (Registro)
         session([
             'register_email' => $email,
             'register_codper' => trim($personal->codper)
         ]);
-
         return redirect()->route('auth.complete_register')
-                         ->with('success', 'Empleado encontrado. Complete su registro.');
+                         ->with('success', 'Trabajador identificado. Por favor, complete su registro.');
     }
 
-    // 4. Si no está en ningún lado
-    return back()->withErrors(['email' => 'Este correo no está autorizado en el sistema de nómina.']);
+    return back()->withErrors(['email' => 'Este correo no coincide con nuestro archivo de personal.']);
 }
     // PASO 2: Mostrar formulario de contraseña
 public function showRegisterForm()

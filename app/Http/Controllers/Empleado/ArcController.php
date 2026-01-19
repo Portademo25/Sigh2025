@@ -9,6 +9,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Http\Request;
+use App\Http\Controllers\Admin\AdminReporteController;
 
 
 class ArcController extends Controller
@@ -68,7 +69,7 @@ if (!$personal) {
     '0021', '0022', '0023', '0024', '0025', '0026', // Becas
     '0063', '0064', '0065', '0066', '0067', '0068'  // Juguetes
 ];
-
+AdminReporteController::registrarDescarga($v_codper, 'Planilla ARC', "Año Fiscal: {$ano}");
 // Definimos exactamente las nóminas que SI aplican para el AR-C
 $nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0015', '0016', '0017', '0018', '0019', '0020', '0051', '0052', '0053', '0054', '0055', '0056'];
 
@@ -81,11 +82,13 @@ $detalles = DB::connection('sigesp')
     ->select(
         DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
         // Usamos ABS() para que los montos negativos de SIGESP salgan positivos en el reporte
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'A' AND hs.codnom IN ('" . implode("','", $nominasARC) . "') THEN hs.valsal ELSE 0 END) as asignacion"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'A' AND hs.codnom IN ('" . implode("','", $nominasARC) . "') THEN ABS(hs.valsal) ELSE 0 END) as asignacion"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000500' THEN ABS(hs.valsal) ELSE 0 END) as monto_sso"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie")
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000002' THEN ABS(hs.valsal) ELSE 0 END) as monto_inces"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000503' THEN ABS(hs.valsal) ELSE 0 END) as monto_pension"),
     )
     ->where('hs.codper', $v_codper)
     ->whereYear('hp.fecdesper', $ano)

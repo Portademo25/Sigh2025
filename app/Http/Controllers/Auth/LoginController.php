@@ -55,7 +55,7 @@ class LoginController extends Controller
         } elseif ($user->hasRole('empleado')) {
             return redirect()->route('empleado.dashboard');
         }
-        
+
         // Redirección por defecto si no tiene rol asignado
         return redirect('/home');
     }
@@ -76,56 +76,37 @@ class LoginController extends Controller
         return '/home';
     }
 
-    public function login(Request $request)
-    {
-    // 1. Validar si el usuario existe y si está permanentemente bloqueado
+  public function login(Request $request)
+{
     $this->validateLogin($request);
 
-    // 2. Verificar si el usuario ha excedido el límite de intentos (3 fallos)
+    // Si el usuario ya tiene bloqueo temporal de Laravel (RateLimiter)
     if ($this->hasTooManyLoginAttempts($request)) {
-
-        // --- LÓGICA DE BLOQUEO PERMANENTE ---
-        // Si el usuario ya está 'throttled' (ha fallado 3 veces en 5 minutos),
-        // aprovechamos para bloquearlo permanentemente.
-        $user = User::where($this->username(), $request->{$this->username()})->first();
-        if ($user && !$user->is_locked) {
-            $user->is_locked = true;
-            $user->save();
-        }
-        // ------------------------------------
-
-        // Devolver la respuesta de bloqueo temporal de Laravel (5 minutos)
         $this->fireLockoutEvent($request);
         return $this->sendLockoutResponse($request);
     }
 
-    // 3. Intentar autenticar (credenciales correctas)
+    // Intentar entrar
     if ($this->attemptLogin($request)) {
         return $this->sendLoginResponse($request);
     }
 
-    // 4. Si la autenticación falló (credenciales incorrectas):
-
-    // Incrementar el contador de intentos fallidos de Laravel
+    // SI FALLA: Incrementar intentos
     $this->incrementLoginAttempts($request);
 
-    // --- LÓGICA DE BLOQUEO PERMANENTE AL ALCANZAR EL LÍMITE ---
-    // Verificar si con este intento fallido se alcanzó o superó el límite ($maxAttempts = 3)
-    if (RateLimiter::attempts($this->throttleKey($request)) >= $this->maxAttempts) {
+    // Lógica de bloqueo en BD al alcanzar el límite
+    $user = User::where($this->username(), $request->{$this->username()})->first();
+    if ($user) {
+        $maxAttempts = \App\Models\Setting::where('key', 'max_attempts')->value('value') ?? 3;
 
-        $user = User::where($this->username(), $request->{$this->username()})->first();
-        if ($user && !$user->is_locked) {
-            // Marcar como permanentemente bloqueado en la base de datos
-            $user->is_locked = true;
-            $user->save();
+        if ($this->limiter()->attempts($this->throttleKey($request)) >= $maxAttempts) {
+            $user->update(['is_locked' => true]);
+            Log::warning("Bloqueo definitivo para: " . $user->email);
         }
     }
-    // -----------------------------------------------------------
 
-    // Devolver la respuesta de error de credenciales estándar
     return $this->sendFailedLoginResponse($request);
-
-    }
+}
 
 protected function sendLoginResponse(Request $request)
 {
@@ -152,25 +133,53 @@ protected function sendLoginResponse(Request $request)
     return $this->authenticated($request, $user) ?: redirect()->intended($this->redirectPath());
 }
 
-protected function incrementLoginAttempts(Request $request)
+protected function validateLogin(Request $request)
 {
-    $this->limiter()->hit($this->throttleKey($request), $this->decayMinutes());
+    $request->validate([
+        $this->username() => 'required|string',
+        'password' => 'required|string',
+    ]);
 
-    $user = \App\Models\User::where($this->username(), $request->{$this->username()})->first();
+    // BUSCAR SI EL USUARIO ESTÁ BLOQUEADO PERMANENTEMENTE
+    $user = User::where($this->username(), $request->{$this->username()})->first();
 
-    if ($user) {
-        // LEER EL VALOR DESDE LA BASE DE DATOS
-        $maxAttempts = \App\Models\Setting::where('key', 'max_attempts')->value('value') ?? 3;
-
-        if ($this->limiter()->attempts($this->throttleKey($request)) >= $maxAttempts) {
-            $user->update(['is_locked' => true]);
-            
-            // Opcional: Registrar en el log
-            Log::warning("Usuario bloqueado por exceder {$maxAttempts} intentos: " . $user->email);
-        }
+    if ($user && $user->is_locked) {
+        throw ValidationException::withMessages([
+            $this->username() => ['Su cuenta ha sido bloqueada permanentemente por seguridad. Contacte al administrador.'],
+        ]);
     }
 }
 
+
+protected function incrementLoginAttempts(Request $request)
+{
+    // 1. Registramos el "golpe" en el limitador de Laravel
+    $this->limiter()->hit($this->throttleKey($request), $this->decayMinutes() * 60);
+
+    // 2. Buscamos al usuario por el email que intentó ingresar
+    $email = strtolower(trim($request->input('email')));
+
+    // IMPORTANTE: Buscamos el registro existente.
+    // Si no existe, NO creamos uno nuevo.
+    $user = \App\Models\User::where('email', $email)->first();
+
+    if ($user) {
+        // Obtenemos el máximo de intentos (por defecto 3)
+        $maxAttempts = \App\Models\Setting::where('key', 'max_attempts')->value('value') ?? 3;
+        $attempts = $this->limiter()->attempts($this->throttleKey($request));
+
+        // Si llegó al límite, bloqueamos
+        if ($attempts >= $maxAttempts) {
+            // Al venir de un 'first()', Laravel sabe que debe hacer un UPDATE, no un INSERT
+            $user->is_locked = true;
+            $user->save();
+
+            Log::warning("Cuenta bloqueada por seguridad: " . $user->email);
+        }
+    }
+    // Si el usuario no existe en la tabla local, no hacemos nada.
+    // Laravel manejará el error de "Credenciales incorrectas" normalmente.
+}
 
 }
 

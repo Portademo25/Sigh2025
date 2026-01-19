@@ -44,7 +44,7 @@ Auth::routes();
        Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
         Route::get('users', [UserController::class, 'index'])->name('admin.users.index');
         Route::get('/users/locked', [UserController::class, 'lockedUsers'])->name('admin.users.locked');
-        Route::post('/users/{user}/unlock', [UserController::class, 'unlockUser'])->name('admin.users.unlock');
+        Route::post('/usuarios/{id}/desbloquear', [AdminUserController::class, 'unlockUser'])->name('admin.users.unlock');
         Route::get('/users/connections', [AdminUserController::class, 'connectionHistory'])->name('admin.users.connections');
         Route::get('/users/active', [AdminUserController::class, 'activeUsers'])->name('admin.users.active');
         Route::post('/users/{user}/kick', [AdminUserController::class, 'kickUser'])->name('admin.users.kick');
@@ -64,7 +64,7 @@ Auth::routes();
         Route::get('/admin/security', [SettingsController::class, 'securityIndex'])->name('admin.security.index');
         Route::post('/admin/security/action', [SettingsController::class, 'handleSecurityAction'])->name('admin.security.action');
         Route::get('/admin/security/policies', [SettingsController::class, 'policiesIndex'])->name('admin.security.policies');
-        Route::post('/admin/security/policies/update', [SettingsController::class, 'updatePolicies'])->name('admin.security.policies.update');
+    Route::post('/admin/security/policies/update', [SettingsController::class, 'updatePolicies'])->name('admin.security.policies.update');
     });
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {

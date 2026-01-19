@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\RateLimiter; // Para limpiar el throttling de Laravel
 use App\Models\Conexion;
+use Illuminate\Support\Facades\Auth;
+
 
 class UserController extends Controller
 {
@@ -15,20 +17,23 @@ class UserController extends Controller
         $lockedUsers = User::where('is_locked', true)->get();
         return view('admin.locked_users', compact('lockedUsers')); // Crea esta vista
     }
-
-    public function unlockUser(User $user)
+public function unlockUser($id)
     {
-        // 1. Quitar el bloqueo permanente
+        // 1. Buscamos al usuario existente (findOrFail evita el error de INSERT)
+        $user = User::findOrFail($id);
+
+        // 2. Cambiamos el estatus en la base de datos
         $user->is_locked = false;
-        $user->save();
+        $user->save(); // Esto ejecutará un UPDATE seguro
 
-        // 2. Limpiar el contador de intentos de login de Laravel para esta cuenta
-        // Esto evita que el usuario quede "throttled" temporalmente incluso después de desbloquear
-        RateLimiter::clear($user->email); // Laravel usa el nombre de usuario/email por defecto
+        // 3. Limpiamos el limitador de intentos (RateLimiter)
+        // La llave debe coincidir con la del Login: usualmente "email|"
+        $throttleKey = strtolower(trim($user->email)) . '|';
+        RateLimiter::clear($throttleKey);
 
-        return redirect()->route('admin.users.locked')->with('success', 'Usuario desbloqueado con éxito.');
+        // 4. Redirigir con mensaje de éxito
+        return back()->with('success', "El usuario {$user->name} ha sido desbloqueado y ya puede intentar iniciar sesión.");
     }
-
     public function index()
     {
        $lockedUsersCount = User::where('is_locked', true)->count();
@@ -105,7 +110,7 @@ public function updateUserRole(Request $request, User $user)
     ]);
 
     // Evitar que el admin se quite el rango a sí mismo por accidente
-    if ($user->id === auth()->id() && $request->rol_id != 1) {
+    if ($user->id === Auth::id() && $request->rol_id != 1) {
         return back()->withErrors(['error' => 'No puedes quitarte el permiso de Administrador a ti mismo.']);
     }
 

@@ -86,9 +86,21 @@
                     <div class="row">
                         <div class="col-lg-7">
                             <div class="card border-0 shadow-sm mb-4 h-100">
-                                <div class="card-header bg-white fw-bold py-3">
-                                    <i class="bi bi-pie-chart me-2 text-primary"></i> Distribución de Documentos
-                                </div>
+                                <div class="row mb-4">
+                                     <div class="col-lg-12">
+                                          <div class="card border-0 shadow-sm">
+                                               <div class="card-header bg-white fw-bold py-3 d-flex justify-content-between align-items-center">
+                                                     <span><i class="bi bi-bar-chart-line me-2 text-primary"></i> Generación Mensual: Planilla ARC</span>
+                                                          <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Año {{ date('Y') }}</span>
+                                                      </div>
+                                                  <div class="card-body">
+                                                     <div style="height: 250px;">
+                                                           <canvas id="chartArcBar"></canvas>
+                                                      </div>
+                                                    </div>
+                     </div>
+    </div>
+</div>
                                 <div class="card-body d-flex align-items-center justify-content-center">
                                     @if(isset($labelsPie) && count($labelsPie) > 0)
                                         <div style="width: 100%; height: 300px;">
@@ -146,53 +158,54 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const labelsData = {!! json_encode($labelsPie ?? []) !!};
-        const valuesData = {!! json_encode($datosPie ?? []) !!};
+document.addEventListener('DOMContentLoaded', function() {
+    const ctxBar = document.getElementById('chartArcBar').getContext('2d');
 
-        if (labelsData.length > 0) {
-            const ctxPie = document.getElementById('chartPie').getContext('2d');
-            new Chart(ctxPie, {
-                type: 'doughnut',
-                data: {
-                    labels: labelsData,
-                    datasets: [{
-                        data: valuesData,
-                        backgroundColor: [
-                            '#198754', // Verde
-                            '#0dcaf0', // Cian
-                            '#ffc107', // Amarillo
-                            '#0d6efd', // Azul
-                            '#dc3545', // Rojo
-                            '#6610f2'  // Morado
-                        ],
-                        hoverOffset: 20,
-                        borderWidth: 5,
-                        borderColor: '#ffffff'
-                    }]
+    new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+            datasets: [
+                {
+                    label: 'Planilla ARC',
+                    data: @json($arcStats),
+                    backgroundColor: '#0d6efd', // Azul
+                    borderRadius: 4,
                 },
-                options: {
-                    maintainAspectRatio: false,
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                padding: 25,
-                                usePointStyle: true,
-                                font: { size: 12 }
-                            }
-                        },
-                        tooltip: {
-                            padding: 12,
-                            boxPadding: 8
-                        }
-                    },
-                    cutout: '65%'
+                {
+                    label: 'Recibo de Pago',
+                    data: @json($reciboStats),
+                    backgroundColor: '#198754', // Verde
+                    borderRadius: 4,
+                },
+                {
+                    label: 'Constancia',
+                    data: @json($constanciaStats),
+                    backgroundColor: '#ffc107', // Amarillo
+                    borderRadius: 4,
                 }
-            });
+            ]
+        },
+        const labelsPie = {!! json_encode($labelsPie) !!};
+if (labelsPie.length > 0) {
+    // Código para renderizar el chart...
+} else {
+    console.log("No hay datos para la gráfica de torta");
+}
+        });
+        options: {
+            maintainAspectRatio: false,
+            responsive: true,
+            plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true } }
+            },
+            scales: {
+                x: { stacked: false, grid: { display: false } },
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
         }
     });
+});
 </script>
 
 <style>
