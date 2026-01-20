@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DashboardController extends Controller
 {
@@ -89,5 +90,20 @@ public function getEstadisticasArc()
     return view('admin.dashboard', [
         'arcStats' => array_values($data)
     ]);
+}
+
+
+// En DashboardController.php
+
+public function exportarExcel(Request $request) {
+    // Si no vienen fechas en la URL, usamos el mes actual por defecto
+    $inicio = $request->input('fecha_inicio', now()->startOfMonth()->format('Y-m-d'));
+    $fin = $request->input('fecha_fin', now()->format('Y-m-d'));
+
+    try {
+        return Excel::download(new \App\Exports\ReporteDescargasExport($inicio, $fin), 'reporte_descargas.xlsx');
+    } catch (\Exception $e) {
+        return back()->with('error', 'Error al exportar: ' . $e->getMessage());
+    }
 }
 }

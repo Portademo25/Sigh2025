@@ -1,13 +1,15 @@
 <?php
 
+
+use App\Http\Middleware\UpdateUserLastSeen;
+use App\Http\Middleware\CheckSessionId;
+use App\Http\Middleware\CheckMaintenanceMode;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
-use App\Http\Middleware\UpdateUserLastSeen;
-use App\Http\Middleware\CheckSessionId;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,15 +18,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
 )
 ->withMiddleware(function ($middleware) {
-        $middleware->alias([
-            'role' => RoleMiddleware::class,
-            'permission' => PermissionMiddleware::class,
-            'role_or_permission' => RoleOrPermissionMiddleware::class,
-             'web' => [
-                     UpdateUserLastSeen::class,
-                     CheckSessionId::class,
-    ],
-        ]);
+        $middleware->web(append: [
+        \App\Http\Middleware\UpdateUserLastSeen::class,
+        \App\Http\Middleware\CheckSessionId::class,
+        \App\Http\Middleware\CheckMaintenanceMode::class, // Tu middleware
+    ]);
+
+    // 2. Registra los de Spatie como ALIAS para usarlos en las rutas
+    $middleware->alias([
+        'role' => RoleMiddleware::class,
+        'permission' => PermissionMiddleware::class,
+        'role_or_permission' => RoleOrPermissionMiddleware::class,
+    ]);
 
 
     })

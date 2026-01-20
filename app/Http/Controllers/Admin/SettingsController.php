@@ -15,6 +15,7 @@ use App\Models\SnoPersonal;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Exception;
+use Illuminate\Support\Facades\Storage;
 
 
 class SettingsController extends Controller
@@ -210,61 +211,109 @@ public function updateMailSettings(Request $request)
     }
 }
 
-
 public function securityIndex()
-{
-    // Obtenemos algunos eventos de ejemplo de la tabla de auditoría
-    // Si aún no tienes una tabla de 'logs_seguridad', puedes usar la de 'reporte_descargas'
-    // o simplemente pasar un array vacío por ahora.
-    $eventos = DB::table('reporte_descargas')
-                ->orderBy('created_at', 'desc')
-                ->limit(10)
-                ->get();
-
-    return view('admin.security.index', compact('eventos'));
-}
-
-/**
- * Maneja las acciones de seguridad (Mantenimiento, Limpieza, etc.)
- */
-public function handleSecurityAction(Request $request)
-{
-    $action = $request->input('action');
-
-    switch ($action) {
-        case 'toggle_maintenance':
-            if (app()->isDownForMaintenance()) {
-                Artisan::call('up');
-                return back()->with('success', 'El portal ahora está en línea y accesible.');
-            } else {
-                // Se activa el mantenimiento. El 'secret' permite entrar si pones /tu-secreto
-                Artisan::call('down', ['--refresh' => 15]);
-                return back()->with('warning', 'El portal ha sido puesto en modo mantenimiento.');
-            }
-            break;
-
-        case 'clear_cache':
-            Artisan::call('cache:clear');
-            Artisan::call('view:clear');
-            Artisan::call('config:clear');
-            return back()->with('success', 'Caché del sistema optimizada correctamente.');
-            break;
-
-        default:
-            return back()->with('error', 'Acción no reconocida.');
+    {
+        // Esta ruta corresponde a: /admin/security
+      $config = DB::table('settings')->pluck('value', 'key');
+        return view('admin.security.index', compact('config'));
     }
+
+
+    public function policiesIndex()
+    {
+        // Obtenemos los valores actuales de la tabla settings (key-value)
+        $config = DB::table('settings')->pluck('value', 'key');
+
+        // Esta ruta corresponde a: /admin/security/policies
+        return view('admin.security.policies', compact('config'));
+    }
+
+    /**
+     * Procesa la actualización de las políticas
+     */
+
+    public function handleSecurityAction(Request $request)
+    {
+        $action = $request->input('action');
+
+        switch ($action) {
+            case 'unlock_all_users':
+                User::where('is_locked', true)->update(['is_locked' => false]);
+                return back()->with('success', 'Todos los usuarios han sido desbloqueados.');
+
+            case 'clear_login_attempts':
+                // Limpiamos los intentos de login para todos los usuarios
+                \Illuminate\Support\Facades\RateLimiter::clear();
+                return back()->with('success', 'Los intentos de inicio de sesión han sido reiniciados para todos los usuarios.');
+
+            default:
+                return back()->withErrors(['action' => 'Acción no válida.']);
+        }
+    }
+
+
+    // app/Http/Controllers/Admin/SettingsController.php
+
+   public function updateSecurityPolicies(Request $request)
+{
+    // 1. Validar los datos (incluyendo los archivos)
+    $request->validate([
+        'intentos_maximos' => 'required|integer',
+        'duracion_bloqueo' => 'required|integer',
+        'expiracion_sesion' => 'required|integer',
+        'ssl_certificate' => 'nullable|file|mimes:crt,pem,txt,cer',
+        'ssl_key' => 'nullable|file|mimes:key,pem,txt',
+    ]);
+
+    // 2. Guardar configuraciones de texto
+    $data = $request->only(['intentos_maximos', 'duracion_bloqueo', 'expiracion_sesion']);
+    foreach ($data as $key => $value) {
+        DB::table('settings')->updateOrInsert(
+            ['key' => $key],
+            ['value' => $value, 'updated_at' => now()]
+        );
+    }
+
+    // 3. Manejo del Certificado (.crt)
+    if ($request->hasFile('ssl_certificate')) {
+        // Guardar en storage/app/ssl (no accesible desde la web)
+        $certPath = $request->file('ssl_certificate')->store('ssl');
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'ssl_certificate_path'],
+            ['value' => $certPath, 'updated_at' => now()]
+        );
+    }
+
+    // 4. Manejo de la Llave Privada (.key)
+    if ($request->hasFile('ssl_key')) {
+        $keyPath = $request->file('ssl_key')->store('ssl');
+
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'ssl_key_path'],
+            ['value' => $keyPath, 'updated_at' => now()]
+        );
+    }
+
+    return back()->with('success', 'Políticas y archivos de seguridad actualizados correctamente.');
 }
-public function policiesIndex() {
-    // Aquí puedes cargar valores desde tu tabla de configuraciones o archivo de config
-    return view('admin.security.policies');
+
+public function toggleMaintenance()
+{
+    // 1. Obtener el estado actual
+    $currentStatus = DB::table('settings')->where('key', 'site_offline')->value('value') ?? '0';
+
+    // 2. Invertir el estado
+    $newStatus = ($currentStatus == '1') ? '0' : '1';
+
+    // 3. Guardar en la base de datos
+   DB::table('settings')->updateOrInsert(
+        ['key' => 'site_offline'],
+        ['value' => $newStatus, 'updated_at' => now()]
+    );
+
+    $mensaje = ($newStatus == '1') ? 'El sistema ahora está en mantenimiento.' : 'El sistema vuelve a estar en línea.';
+
+    return back()->with('success', $mensaje);
 }
-
-public function updatePolicies(Request $request) {
-    // Lógica para guardar en la base de datos o actualizar el .env
-    // Por ahora, simularemos el éxito
-    return back()->with('success', 'Políticas de seguridad actualizadas correctamente.');
-}
-
-
-
 }

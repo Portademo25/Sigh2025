@@ -93,6 +93,10 @@
                                                      <span><i class="bi bi-bar-chart-line me-2 text-primary"></i> Generación Mensual: Planilla ARC</span>
                                                           <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Año {{ date('Y') }}</span>
                                                       </div>
+                                                      <a href="{{ route('admin.export.excel', ['fecha_inicio' => $fechaInicio, 'fecha_fin' => $fechaFin]) }}"
+   class="btn btn-success btn-sm px-3 shadow-sm ms-1">
+    <i class="bi bi-file-earmark-excel me-1"></i> Exportar a Excel
+</a>
                                                   <div class="card-body">
                                                      <div style="height: 250px;">
                                                            <canvas id="chartArcBar"></canvas>
@@ -112,6 +116,7 @@
                                             <p class="text-muted mt-3">No hay datos en el rango seleccionado</p>
                                         </div>
                                     @endif
+
                                 </div>
                             </div>
                         </div>
@@ -158,54 +163,91 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const ctxBar = document.getElementById('chartArcBar').getContext('2d');
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. DATOS DESDE LARAVEL
+        const labelsMeses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-    new Chart(ctxBar, {
-        type: 'bar',
-        data: {
-            labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-            datasets: [
-                {
-                    label: 'Planilla ARC',
-                    data: @json($arcStats),
-                    backgroundColor: '#0d6efd', // Azul
-                    borderRadius: 4,
-                },
-                {
-                    label: 'Recibo de Pago',
-                    data: @json($reciboStats),
-                    backgroundColor: '#198754', // Verde
-                    borderRadius: 4,
-                },
-                {
-                    label: 'Constancia',
-                    data: @json($constanciaStats),
-                    backgroundColor: '#ffc107', // Amarillo
-                    borderRadius: 4,
-                }
-            ]
-        },
-        const labelsPie = {!! json_encode($labelsPie) !!};
-if (labelsPie.length > 0) {
-    // Código para renderizar el chart...
-} else {
-    console.log("No hay datos para la gráfica de torta");
-}
-        });
-        options: {
-            maintainAspectRatio: false,
-            responsive: true,
-            plugins: {
-                legend: { position: 'top', labels: { usePointStyle: true } }
+        // Datos de Barras (Comparativo)
+        const dataArc = {!! json_encode($arcStats) !!};
+        const dataRecibo = {!! json_encode($reciboStats) !!};
+        const dataConstancia = {!! json_encode($constanciaStats) !!};
+
+        // Datos de Torta (Distribución)
+        const labelsPie = {!! json_encode($labelsPie ?? []) !!};
+        const valuesPie = {!! json_encode($datosPie ?? []) !!};
+
+        // --- GRÁFICA DE BARRAS COMPARATIVA ---
+        const ctxBar = document.getElementById('chartArcBar').getContext('2d');
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: labelsMeses,
+                datasets: [
+                    {
+                        label: 'Planilla ARC',
+                        data: dataArc,
+                        backgroundColor: '#0d6efd', // Azul
+                        borderRadius: 5,
+                    },
+                    {
+                        label: 'Recibo de Pago',
+                        data: dataRecibo,
+                        backgroundColor: '#198754', // Verde
+                        borderRadius: 5,
+                    },
+                    {
+                        label: 'Constancia Trabajo',
+                        data: dataConstancia,
+                        backgroundColor: '#ffc107', // Amarillo
+                        borderRadius: 5,
+                    }
+                ]
             },
-            scales: {
-                x: { stacked: false, grid: { display: false } },
-                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            options: {
+                maintainAspectRatio: false,
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { usePointStyle: true, padding: 20 }
+                    },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, precision: 0 }
+                    }
+                }
             }
+        });
+
+        // --- GRÁFICA DE TORTA (DOUGHNUT) ---
+        if (labelsPie.length > 0) {
+            const ctxPie = document.getElementById('chartPie').getContext('2d');
+            new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: labelsPie,
+                    datasets: [{
+                        data: valuesPie,
+                        backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#0dcaf0', '#d63384'],
+                        hoverOffset: 15,
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true } }
+                    }
+                }
+            });
         }
     });
-});
 </script>
 
 <style>

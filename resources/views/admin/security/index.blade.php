@@ -15,25 +15,32 @@
                 <div class="card-header bg-white py-3 fw-bold">
                     <i class="bi bi-broadcast me-2"></i>Disponibilidad del Sistema
                 </div>
-                <div class="card-body text-center">
-                    @if(app()->isDownForMaintenance())
-                        <div class="display-6 text-danger mb-2"><i class="bi bi-pause-circle-fill"></i></div>
-                        <h5 class="fw-bold">Modo Mantenimiento Activo</h5>
-                        <p class="small text-muted">El portal está cerrado para los empleados.</p>
-                        <form action="{{ route('admin.security.action') }}" method="POST">
-                            @csrf
-                            <input type="hidden" name="action" value="toggle_maintenance">
-                            <button type="submit" class="btn btn-success w-100 mt-2">Abrir Portal al Público</button>
-                        </form>
+                <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h6 class="mb-0 fw-bold">Modo Mantenimiento</h6>
+            <small class="text-muted">Desactiva el acceso al portal para usuarios no administrativos.</small>
+        </div>
+        <div class="form-check form-switch">
+            <form action="{{ route('admin.security.toggle-maintenance') }}" method="POST">
+                @csrf
+                <button type="submit" class="btn {{ ($config['site_offline'] ?? '0') == '1' ? 'btn-danger' : 'btn-outline-secondary' }} btn-sm">
+                    @if(($config['site_offline'] ?? '0') == '1')
+                        <i class="bi bi-pause-btn-fill me-1"></i> Desactivar Mantenimiento
                     @else
-                        <div class="display-6 text-success mb-2"><i class="bi bi-check-circle-fill"></i></div>
-                        <h5 class="fw-bold">Sistema En Línea</h5>
-                        <p class="small text-muted">Todos los servicios están operando normalmente.</p>
-                        <button type="button" class="btn btn-outline-danger w-100 mt-2" data-bs-toggle="modal" data-bs-target="#modalMantenimiento">
-                            Activar Mantenimiento
-                        </button>
+                        <i class="bi bi-play-btn-fill me-1"></i> Activar Mantenimiento
                     @endif
-                </div>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    @if(($config['site_offline'] ?? '0') == '1')
+        <div class="alert alert-warning py-2 small mb-0">
+            <i class="bi bi-exclamation-triangle me-1"></i> El sistema se encuentra actualmente fuera de línea para los usuarios.
+        </div>
+    @endif
+</div>
             </div>
 
             <div class="card shadow-sm border-0">
@@ -44,22 +51,30 @@
                     <ul class="list-group list-group-flush small">
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                             Bloqueo por intentos fallidos
-                            <span class="badge bg-primary rounded-pill">3 intentos</span>
+                            <span class="badge bg-primary rounded-pill">{{ $config['intentos_maximos'] ?? '3' }} intentos</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                             Cierre de sesión automático
-                            <span class="badge bg-secondary rounded-pill">15 min</span>
+                            <span class="badge bg-secondary rounded-pill">{{ $config['duracion_bloqueo'] ?? '15' }} min</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            Cierre de sesión automático por inactividad
+                            <span class="badge bg-secondary rounded-pill"> {{ $config['expiracion_sesion'] ?? '120' }} min</span>
                         </li>
                         <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                             Cifrado de datos (SSL)
-                            <span class="text-success"><i class="bi bi-shield-fill-check"></i> Activo</span>
+                             @if(request()->isSecure())
+                                <span class="text-success"><i class="bi bi-shield-fill-check"></i> Activo</span>
+                                     @else
+                                         <span class="text-warning"><i class="bi bi-shield-slash"></i> No seguro</span>
+                                    @endif
                         </li>
                     </ul>
 
                         <a href="{{ route('admin.security.policies') }}" class="btn btn-light btn-sm w-100 mt-3 border">
                             Editar Políticas
                         </a>
-                    
+
                 </div>
             </div>
         </div>

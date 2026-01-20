@@ -14,42 +14,68 @@
             <h5 class="mb-0 fw-bold"><i class="bi bi-shield-lock me-2 text-primary"></i>Configuración de Políticas de Acceso</h5>
         </div>
         <div class="card-body">
-            <form action="{{ route('admin.security.policies.update') }}" method="POST">
+            <form action="{{ route('admin.security.policies.save') }}" method="POST" enctype="multipart/form-data">
                 @csrf
-                <div class="row g-4">
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Máximo de intentos de inicio de sesión</label>
-                        <p class="small text-muted">Número de fallos permitidos antes de bloquear la cuenta temporalmente.</p>
-                        <select name="max_attempts" class="form-select">
-                            <option value="3">3 Intentos (Recomendado)</option>
-                            <option value="5">5 Intentos</option>
-                            <option value="10">10 Intentos</option>
-                        </select>
-                    </div>
 
+                <div class="row">
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Duración del bloqueo (Minutos)</label>
-                        <p class="small text-muted">Tiempo que el usuario deberá esperar tras superar los intentos.</p>
-                        <input type="number" name="lockout_time" class="form-control" value="15">
-                    </div>
+                        <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-person-badge me-2"></i>Acceso y Sesión</h6>
 
-                    <div class="col-12"><hr></div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Máximo de Intentos Fallidos</label>
+                            <select name="intentos_maximos" class="form-select">
+                                <option value="3" {{ ($config['intentos_maximos'] ?? '') == '3' ? 'selected' : '' }}>3 Intentos (Recomendado)</option>
+                                <option value="5" {{ ($config['intentos_maximos'] ?? '') == '5' ? 'selected' : '' }}>5 Intentos</option>
+                                <option value="10" {{ ($config['intentos_maximos'] ?? '') == '10' ? 'selected' : '' }}>10 Intentos</option>
+                            </select>
+                        </div>
 
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Expiración de Sesión Inactiva</label>
-                        <p class="small text-muted">Cierra la sesión automáticamente si no hay actividad.</p>
-                        <div class="input-group">
-                            <input type="number" name="session_lifetime" class="form-control" value="120">
-                            <span class="input-group-text">Minutos</span>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Duración del Bloqueo (Minutos)</label>
+                            <input type="number" name="duracion_bloqueo" class="form-control"
+                                   value="{{ $config['duracion_bloqueo'] ?? 15 }}" min="1">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Tiempo de Expiración de Sesión (Minutos)</label>
+                            <input type="number" name="expiracion_sesion" class="form-control"
+                                   value="{{ $config['expiracion_sesion'] ?? 120 }}" min="1">
                         </div>
                     </div>
 
-                    
+                    <div class="col-md-6 border-start">
+                        <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-safe2 me-2"></i>Certificado SSL (Cifrado)</h6>
 
-                <div class="mt-5 pt-3 border-top text-end">
-                    <a href="{{ route('admin.security.index') }}" class="btn btn-light px-4">Cancelar</a>
-                    <button type="submit" class="btn btn-primary px-4">
-                        <i class="bi bi-save me-2"></i>Aplicar Cambios
+                        <div class="alert {{ request()->isSecure() ? 'alert-light-success text-success' : 'alert-light-warning text-warning' }} border-0 small py-2">
+                            <i class="bi {{ request()->isSecure() ? 'bi-patch-check-fill' : 'bi-exclamation-triangle-fill' }} me-1"></i>
+                            Estado actual: <strong>{{ request()->isSecure() ? 'Conexión Segura (HTTPS)' : 'Conexión no cifrada' }}</strong>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Archivo de Certificado (.crt / .pem)</label>
+                            <input type="file" name="ssl_certificate" class="form-control form-control-sm">
+                            @if(isset($config['ssl_certificate_path']))
+                                <div class="form-text text-success"><i class="bi bi-check-circle-fill"></i> Certificado cargado anteriormente</div>
+                            @endif
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Llave Privada (.key)</label>
+                            <input type="file" name="ssl_key" class="form-control form-control-sm">
+                            @if(isset($config['ssl_key_path']))
+                                <div class="form-text text-success"><i class="bi bi-check-circle-fill"></i> Llave privada cargada anteriormente</div>
+                            @endif
+                        </div>
+
+                        <div class="p-2 bg-light rounded small text-muted">
+                            <i class="bi bi-info-circle me-1"></i> Nota: La instalación completa del SSL depende de la configuración de su servidor web (Nginx/Apache).
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-end mt-4 pt-3 border-top">
+                    <button type="submit" class="btn btn-primary px-5">
+                        <i class="bi bi-save me-1"></i> Guardar Todos los Cambios
                     </button>
                 </div>
             </form>

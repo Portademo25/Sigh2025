@@ -64,7 +64,11 @@ Auth::routes();
         Route::get('/admin/security', [SettingsController::class, 'securityIndex'])->name('admin.security.index');
         Route::post('/admin/security/action', [SettingsController::class, 'handleSecurityAction'])->name('admin.security.action');
         Route::get('/admin/security/policies', [SettingsController::class, 'policiesIndex'])->name('admin.security.policies');
-    Route::post('/admin/security/policies/update', [SettingsController::class, 'updatePolicies'])->name('admin.security.policies.update');
+    Route::post('/admin/security/policies/save', [SettingsController::class, 'updateSecurityPolicies'])
+    ->name('admin.security.policies.save');
+    Route::get('/admin/exportar-reportes', [DashboardController::class, 'exportarExcel'])->name('admin.export.excel');
+    Route::post('/admin/security/toggle-maintenance', [SettingsController::class, 'toggleMaintenance'])
+    ->name('admin.error.mantenance');
     });
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {

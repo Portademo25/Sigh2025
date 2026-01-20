@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Models\Conexion;
+use Illuminate\Support\Facades\DB;
 
 
 class LoginController extends Controller
@@ -27,13 +28,13 @@ class LoginController extends Controller
      * El número máximo de intentos de inicio de sesión permitidos.
      * @var int
      */
-    protected $maxAttempts = 3;
+
 
     /**
      * La cantidad de minutos de espera después de la limitación de velocidad.
      * @var int
      */
-    protected $decayMinutes = 5;
+
 
     // En su lugar, usar el método authenticated()
 
@@ -181,5 +182,15 @@ protected function incrementLoginAttempts(Request $request)
     // Laravel manejará el error de "Credenciales incorrectas" normalmente.
 }
 
+    protected function maxAttempts()
+    {
+        // Busca 'intentos_maximos' en la tabla, si no existe usa 3 por defecto
+        return DB::table('settings')->where('key', 'intentos_maximos')->value('value') ?? 3;
+    }
+    protected function decayMinutes()
+    {
+    // Busca 'duracion_bloqueo' en la tabla, si no existe usa 15 minutos
+    return DB::table('settings')->where('key', 'duracion_bloqueo')->value('value') ?? 15;
+    }
 }
 
