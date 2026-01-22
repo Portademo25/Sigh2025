@@ -64,11 +64,14 @@ Auth::routes();
         Route::get('/admin/security', [SettingsController::class, 'securityIndex'])->name('admin.security.index');
         Route::post('/admin/security/action', [SettingsController::class, 'handleSecurityAction'])->name('admin.security.action');
         Route::get('/admin/security/policies', [SettingsController::class, 'policiesIndex'])->name('admin.security.policies');
-    Route::post('/admin/security/policies/save', [SettingsController::class, 'updateSecurityPolicies'])
-    ->name('admin.security.policies.save');
-    Route::get('/admin/exportar-reportes', [DashboardController::class, 'exportarExcel'])->name('admin.export.excel');
-    Route::post('/admin/security/toggle-maintenance', [SettingsController::class, 'toggleMaintenance'])
-    ->name('admin.error.mantenance');
+        Route::post('/admin/security/policies/save', [SettingsController::class, 'updateSecurityPolicies'])->name('admin.security.policies.save');
+        Route::get('/admin/exportar-reportes', [DashboardController::class, 'exportarExcel'])->name('admin.export.excel');
+        Route::post('/admin/security/toggle-maintenance', [SettingsController::class, 'toggleMaintenance'])->name('admin.security.toggle-maintenance');
+        Route::get('/settings/general', [SettingsController::class, 'generalIndex'])->name('admin.settings.general');
+        Route::post('/settings/general/update', [SettingsController::class, 'updateGeneral'])->name('admin.settings.general.update');
+        Route::post('/settings/test-sigesp', [SettingsController::class, 'testSigespConnection'])->name('admin.settings.test_sigesp');
+        Route::post('/settings/test-local', [SettingsController::class, 'testLocalConnection'])->name('admin.settings.test_local');
+        Route::get('/settings/fetch-users', [App\Http\Controllers\Admin\SettingsController::class, 'fetchUsers'])->name('admin.settings.fetch_users');
     });
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {

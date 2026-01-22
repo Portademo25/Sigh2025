@@ -24,10 +24,19 @@
                 Estaremos de vuelta en unos minutos.
             </p>
             <hr>
-            <div class="d-flex justify-content-center align-items-center text-secondary small">
-                <i class="bi bi-info-circle me-2"></i>
-                Si eres administrador, puedes <a href="{{ route('login') }}" class="ms-1 text-decoration-none">iniciar sesión aquí</a>.
-            </div>
+            <div class="mt-4">
+    <p class="text-muted">Si eres administrador y necesitas realizar ajustes:</p>
+
+    <a href="{{ route('logout') }}"
+       onclick="event.preventDefault(); document.getElementById('force-logout-form').submit();"
+       class="btn btn-primary">
+        Acceder como Administrador
+    </a>
+
+    <form id="force-logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+        @csrf
+    </form>
+    </div>
         </div>
         <p class="mt-4 text-secondary small">&copy; {{ date('Y') }} - Departamento de Tecnología</p>
     </div>

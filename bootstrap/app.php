@@ -21,7 +21,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
         \App\Http\Middleware\UpdateUserLastSeen::class,
         \App\Http\Middleware\CheckSessionId::class,
-        \App\Http\Middleware\CheckMaintenanceMode::class, // Tu middleware
+        \App\Http\Middleware\CheckMaintenanceMode::class,
+         \App\Http\Middleware\DynamicDatabaseConfig::class,// Tu middleware
     ]);
 
     // 2. Registra los de Spatie como ALIAS para usarlos en las rutas

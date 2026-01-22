@@ -11,30 +11,29 @@ use Illuminate\Support\Facades\Auth;
 
 class CheckMaintenanceMode
 {
-  public function handle(Request $request, Closure $next)
-{
-    $isOffline = DB::table('settings')->where('key', 'site_offline')->value('value');
+    public function handle(Request $request, Closure $next)
+    {
+        $isOffline = DB::table('settings')->where('key', 'site_offline')->value('value');
 
     if ($isOffline == '1') {
-        // EXCEPCIONES: Rutas que deben funcionar SIEMPRE
-        if (
-            $request->is('login') ||
-            $request->is('logout') ||
-            $request->is('auth/*') || // <--- EXCLUYE TODO LO DE ONBOARDING
-            $request->routeIs('admin.error.mantenance')
-        ) {
+    // Si ya está logueado pero es EMPLEADO y trata de ver algo que no es login/logout
+    if (Auth::check() && Auth::user()->hasRole('empleado')) {
+        if (!$request->is('logout')) {
+            return response()->view('errors.maintenance', [], 503);
+        }
+    } {
             return $next($request);
         }
 
-        // Si es admin, dejar pasar a su panel
-        if ($request->user() && $request->user()->hasRole('admin')) {
-            return $next($request);
+            // Si es admin, dejar pasar a su panel
+            if ($request->user() && $request->user()->hasRole('admin')) {
+                return $next($request);
+            }
+
+            // Bloqueo para todos los demás
+            return response()->view('errors.maintenance', [], 503);
         }
 
-        // Bloqueo para todos los demás
-        return response()->view('errors.maintenance', [], 503);
+        return $next($request);
     }
-
-    return $next($request);
-}
 }

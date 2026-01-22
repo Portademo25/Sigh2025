@@ -24,13 +24,9 @@ class AppServiceProvider extends ServiceProvider
         try {
             // 1. LÓGICA DE SETTINGS (App Name, Offline y Expiración de Sesión)
             if (Schema::hasTable('settings')) {
-                // Buscamos todas las llaves necesarias en una sola consulta para ahorrar recursos
-                $settings = Setting::whereIn('key', [
-                    'app_name',
-                    'site_offline',
-                    'expiracion_sesion'
-                ])->get()->keyBy('key');
-
+        $site_settings = DB::table('settings')->pluck('value', 'key')->all();
+        // Esto permite usar $site_settings['institucion_nombre'] en cualquier Blade
+        view()->share('site_settings', $site_settings);
                 // Configurar Nombre de la App
                 if (isset($settings['app_name'])) {
                     Config::set('app.name', $settings['app_name']->value);

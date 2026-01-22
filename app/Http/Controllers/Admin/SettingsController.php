@@ -316,4 +316,133 @@ public function toggleMaintenance()
 
     return back()->with('success', $mensaje);
 }
+
+
+public function generalIndex()
+{
+    $config = DB::table('settings')->pluck('value', 'key')->toArray();
+    return view('admin.settings.general', compact('config'));
+}
+
+public function updateGeneral(Request $request)
+{
+    // 1. Campos de texto plano
+    $textFields = [
+        'institucion_nombre', 'institucion_rif', 'institucion_siglas', 'institucion_direccion',
+        'db_local_host', 'db_local_name', 'db_local_user',
+        'db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user'
+    ];
+
+    foreach ($textFields as $field) {
+        if ($request->has($field)) {
+            // Buscamos SOLO por 'key'. No pasamos el ID para que Postgres no choque.
+            DB::table('settings')->updateOrInsert(
+                ['key' => $field],
+                ['value' => $request->get($field), 'updated_at' => now()]
+            );
+        }
+    }
+
+    // 2. Guardar Contraseñas ENCRIPTADAS
+    if ($request->filled('db_local_pass')) {
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'db_local_pass'],
+            ['value' => encrypt($request->db_local_pass), 'updated_at' => now()]
+        );
+    }
+
+    if ($request->filled('db_sigesp_pass')) {
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'db_sigesp_pass'],
+            ['value' => encrypt($request->db_sigesp_pass), 'updated_at' => now()]
+        );
+    }
+
+    // 3. Lógica del Logo
+    if ($request->hasFile('logo_archivo')) {
+        // Guardamos el archivo físicamente
+        $path = $request->file('logo_archivo')->store('branding', 'public');
+
+        // Guardamos la ruta en la base de datos
+        DB::table('settings')->updateOrInsert(
+            ['key' => 'logo_path'],
+            ['value' => $path, 'updated_at' => now()]
+        );
+    }
+
+    return back()->with('success', 'Configuración de la institución y bases de datos actualizada correctamente.');
+}
+public function testLocalConnection(Request $request)
+{
+    try {
+        config(['database.connections.temp_local' => [
+            'driver'   => 'pgsql', // Asegúrate que sea pgsql
+            'host'     => $request->db_local_host,
+            'port'     => $request->db_local_port ?? '5432',
+            'database' => $request->db_local_name,
+            'username' => $request->db_local_user,
+            'password' => $request->db_local_pass,
+            'charset'  => 'utf8',
+            'connect_timeout' => 5, // Falla rápido si no hay red
+            'sslmode'  => 'prefer',
+        ]]);
+
+        DB::connection('temp_local')->getPdo();
+
+        return response()->json(['success' => true, 'message' => '¡Conexión Local Exitosa!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+// Método para probar SIGESP
+public function testSigespConnection(Request $request)
+{
+    try {
+        config(['database.connections.temp_sigesp' => [
+            'driver'   => 'pgsql', // Cambia a 'oracle' si tu SIGESP usa Oracle
+            'host'     => $request->db_sigesp_host,
+            'port'     => $request->db_sigesp_port ?? '5432',
+            'database' => $request->db_sigesp_name,
+            'username' => $request->db_sigesp_user,
+            'password' => $request->db_sigesp_pass,
+            'charset'  => 'utf8',
+            'connect_timeout' => 5, // Importante para evitar esperas eternas
+            'sslmode'  => 'prefer',
+        ]]);
+
+        DB::connection('temp_sigesp')->getPdo();
+
+        return response()->json(['success' => true, 'message' => '¡Conexión SIGESP Exitosa!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+}
+
+
+public function updateEmail(Request $request, User $user) {
+    $request->validate(['email' => 'required|email|unique:users,email,' . $user->id]);
+    $user->update(['email' => $request->email]);
+
+    return response()->json(['success' => true]);
+}
+
+public function fetchUsers(Request $request)
+{
+    $search = $request->input('search');
+
+    // Filtramos si hay una búsqueda, de lo contrario traemos todos
+    $users = \App\Models\User::when($search, function ($query, $search) {
+        return $query->where('cedula', 'like', "%{$search}%")
+                     ->orWhere('name', 'like', "%{$search}%")
+                     ->orWhere('email', 'like', "%{$search}%");
+    })
+    ->orderBy('name', 'asc')
+    ->paginate(10);
+
+    // Importante: Mantener los parámetros de búsqueda en los links de paginación
+    $users->appends(['search' => $search]);
+
+    return view('admin.settings.partials.users_table', compact('users'))->render();
+}
 }

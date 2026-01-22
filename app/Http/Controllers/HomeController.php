@@ -12,23 +12,38 @@ class HomeController extends Controller
         $this->middleware('auth');
     }
 
+    /**
+     * Punto de entrada principal después del Login.
+     */
     public function index()
     {
-        return $this->dashboard();
+        return $this->redirectBasedOnRole();
     }
 
+    /**
+     * Ruta /dashboard que redirige según el rol.
+     */
     public function dashboard()
     {
+        return $this->redirectBasedOnRole();
+    }
 
+    /**
+     * Lógica centralizada de redirección para evitar repetición.
+     */
+    private function redirectBasedOnRole()
+    {
         $user = Auth::user();
-
 
         if ($user->hasRole('admin')) {
             return redirect()->route('admin.dashboard');
-        } elseif ($user->hasRole('empleado')) {
+        }
+
+        if ($user->hasRole('empleado')) {
             return redirect()->route('empleado.dashboard');
         }
 
+        // Si por alguna razón no tiene rol, enviarlo a una vista genérica o cerrar sesión
         return view('home');
     }
 }
