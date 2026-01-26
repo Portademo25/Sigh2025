@@ -13,6 +13,10 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasRoles;
 
+    public $incrementing = true;
+
+// Asegúrate de que la llave primaria sea 'id'
+   protected $primaryKey = 'id';
     /**
      * The attributes that are mass assignable.
      *
@@ -32,6 +36,9 @@ class User extends Authenticatable
         'codper',
     ];
 
+    protected $casts = [
+    'last_seen_at' => 'datetime',
+];
     /**
      * The attributes that should be hidden for serialization.
      *

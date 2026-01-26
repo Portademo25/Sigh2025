@@ -11,127 +11,132 @@ use Illuminate\Support\Facades\Auth;
 
 class OnboardingController extends Controller
 {
-    // PASO 1: Verificar el correo ingresado
-
     public function __construct()
-{
-    // Esto asegura que incluso si alguien está "medio logueado",
-    // la ruta de verificar email funcione.
-    $this->middleware('guest')->except('checkEmail');
-}
-
-
-public function checkEmail(Request $request)
-{
-    $request->validate(['email' => 'required|email']);
-    $email = strtolower(trim($request->email));
-
-    // 1. ¿Existe en la tabla local de Laravel?
-    $user = User::where('email', $email)->first();
-
-    if ($user) {
-        // Validación de bloqueo permanente
-        if ($user->is_locked) {
-            return back()->withErrors(['email' => 'Esta cuenta está bloqueada permanentemente por seguridad.']);
-        }
-
-        // Si es empleado, verificar vigencia en SIGESP
-        if ($user->rol_id != 1) {
-            $sigueActivo = DB::connection('sigesp')->table('sno_personal')
-                ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
-                ->exists();
-
-            if (!$sigueActivo) {
-                return back()->withErrors(['email' => 'Acceso denegado: Su ficha no está activa en la nómina de SIGESP.']);
-            }
-        }
-
-        // --- LA CLAVE ESTÁ AQUÍ ---
-        // Redirigimos al login pasando 'user_verified' para que la vista muestre la contraseña
-        return redirect()->route('login')
-                         ->withInput(['email' => $email])
-                         ->with('user_verified', true);
+    {
+        $this->middleware('guest')->except('checkEmail');
     }
 
-    // 2. Si es NUEVO: Buscar en SIGESP para permitir el registro inicial
-    $personal = DB::connection('sigesp')->table('sno_personal')
-        ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
-        ->first();
+    // PASO 1: Verificar el correo ingresado (Prioridad Estper 1)
+    public function checkEmail(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+        $email = strtolower(trim($request->email));
 
-    if ($personal) {
+        // 1. Buscamos en SIGESP solo al que esté ACTIVO
+        // Esto descarta automáticamente a Jackson (estper 3) y prioriza a Juan Luis (estper 1)
+        $personalActivo = DB::connection('sigesp')->table('sno_personal')
+            ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
+            ->where('estper', '1')
+            ->first();
+
+        if (!$personalActivo) {
+            return back()->withErrors([
+                'email' => 'Acceso denegado: No existe una ficha activa vinculada a este correo.'
+            ]);
+        }
+
+        // 2. Si hay ficha activa, verificamos si ya tiene cuenta de usuario
+        $user = User::where('email', $email)->first();
+
+        if ($user) {
+            if ($user->is_locked) {
+                return back()->withErrors(['email' => 'Esta cuenta está bloqueada permanentemente.']);
+            }
+
+            return redirect()->route('login')
+                             ->withInput(['email' => $email])
+                             ->with('user_verified', true);
+        }
+
+        // 3. Preparar registro para la ficha activa encontrada
         session([
             'register_email' => $email,
-            'register_codper' => trim($personal->codper)
+            'register_codper' => trim($personalActivo->codper)
         ]);
+
         return redirect()->route('auth.complete_register')
-                         ->with('success', 'Trabajador identificado. Por favor, complete su registro.');
+                         ->with('success', 'Trabajador activo identificado: ' . trim($personalActivo->nomper));
     }
 
-    return back()->withErrors(['email' => 'Este correo no coincide con nuestro archivo de personal.']);
-}
-    // PASO 2: Mostrar formulario de contraseña
-public function showRegisterForm()
-{
-    // 1. Verificamos que el email esté en la sesión (que venga del paso anterior)
-    if (!session('register_email')) {
-        return redirect()->route('login')->withErrors(['email' => 'Debes verificar tu correo primero.']);
+    // PASO 2: Mostrar formulario usando el CODPER de la sesión
+    public function showRegisterForm()
+    {
+        if (!session('register_email') || !session('register_codper')) {
+            return redirect()->route('login')->withErrors(['email' => 'Debes verificar tu correo primero.']);
+        }
+
+        $codper = session('register_codper');
+
+        // Buscamos específicamente por el código de personal que capturamos en el paso 1
+        // Así nos aseguramos de traer los datos de Juan Luis y no de Jackson
+        $empleado = DB::connection('sigesp')->table('sno_personal')
+            ->where('codper', $codper)
+            ->where('estper', '1')
+            ->first();
+
+        if (!$empleado) {
+            return redirect()->route('login')->withErrors([
+                'email' => 'Error de consistencia: La ficha activa ya no está disponible.'
+            ]);
+        }
+
+        return view('auth.complete-register', compact('empleado'));
     }
 
-    $email = session('register_email');
+    // PASO 3: Guardar el usuario validando contra la ficha activa
+    public function storeUser(Request $request)
+    {
+        $request->validate([
+            'cedula_check' => 'required',
+            'fecha_ingreso_check' => 'required|date',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
 
-    // 2. Buscamos los datos en SIGESP para mostrarlos en el formulario
-    $empleado = \Illuminate\Support\Facades\DB::table('sno_personal')
-        ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
-        ->first();
+        $codper = session('register_codper');
 
-    if (!$empleado) {
-        return redirect()->route('login')->withErrors(['email' => 'Error al recuperar los datos del trabajador.']);
+        // Buscamos nuevamente por codper y estper 1 para máxima seguridad
+        $empleado = DB::connection('sigesp')->table('sno_personal')
+            ->where('codper', $codper)
+            ->where('estper', '1')
+            ->first();
+
+        if (!$empleado) {
+            return redirect()->route('login')->withErrors([
+                'email' => 'La sesión expiró o el trabajador ya no figura como activo.',
+            ]);
+        }
+
+        // Validación de identidad
+        $cedulaValida = trim($empleado->cedper) === trim($request->cedula_check);
+        $fechaValida = date('Y-m-d', strtotime($empleado->fecingper)) === $request->fecha_ingreso_check;
+
+        if (!$cedulaValida || !$fechaValida) {
+            return back()->withErrors([
+                'cedula_check' => 'Los datos de identidad no coinciden con la ficha activa.',
+            ])->withInput();
+        }
+
+        try {
+            $user = User::create([
+                'name'       => trim($empleado->nomper),
+                'apellido'   => trim($empleado->apeper),
+                'email'      => strtolower(trim($empleado->coreleper)),
+                'password'   => Hash::make($request->password),
+                'cedula'     => trim($empleado->cedper),
+                'codper'     => trim($empleado->codper),
+                'rol_id'     => 2,
+                'estatus_id' => 1, // Usuario activo
+                'organizacion_id' => 9,
+            ]);
+
+            $user->assignRole('empleado');
+            Auth::login($user);
+            session()->forget(['register_email', 'register_codper']);
+
+            return redirect()->route('home')->with('success', '¡Bienvenido(a) ' . $user->name . '!');
+
+        } catch (\Exception $e) {
+            return back()->withErrors(['email' => 'Error al crear la cuenta: ' . $e->getMessage()]);
+        }
     }
-
-    // 3. Retornamos la vista que creamos antes con los datos del empleado
-    return view('auth.complete-register', compact('empleado'));
-}
-
-    // PASO 3: Guardar el usuario
-   public function storeUser(Request $request)
-{
-    $request->validate([
-        'cedula_check' => 'required',
-        'fecha_ingreso_check' => 'required|date',
-        'password' => 'required|string|min:8|confirmed',
-    ]);
-
-    $email = session('register_email');
-
-    // 1. Buscar en SIGESP
-    $empleado = DB::table('sno_personal')->where('coreleper', $email)->first();
-
-    // 2. VALIDACIÓN CRÍTICA
-    // Comparamos cédula (quitando espacios) y la fecha de ingreso
-    $cedulaValida = trim($empleado->cedper) === trim($request->cedula_check);
-
-    // SIGESP suele guardar fechas en formato Y-m-d, formateamos la entrada para asegurar
-    $fechaValida = date('Y-m-d', strtotime($empleado->fecingper)) === $request->fecha_ingreso_check;
-
-    if (!$cedulaValida || !$fechaValida) {
-        return back()->withErrors([
-            'cedula_check' => 'Los datos de identidad no coinciden con nuestro archivo de nómina.',
-        ])->withInput();
-    }
-
-    // 3. TODO OK -> Crear usuario en Laravel
-    $user = User::create([
-        'name' => trim($empleado->nomper . ' ' . $empleado->apeper),
-        'email' => $email,
-        'password' => Hash::make($request->password),
-        'cedula' => trim($empleado->cedper),
-        'codper' => trim($empleado->codper),
-        'rol_id' => 2, // 2 = Rol de Trabajador
-    ]);
-
-    Auth::login($user);
-    session()->forget(['register_email', 'register_codper']);
-
-    return redirect()->route('home')->with('success', '¡Cuenta activada! Ya puedes ver tus recibos.');
-}
 }
