@@ -72,6 +72,7 @@ Auth::routes();
         Route::post('/settings/test-sigesp', [SettingsController::class, 'testSigespConnection'])->name('admin.settings.test_sigesp');
         Route::post('/settings/test-local', [SettingsController::class, 'testLocalConnection'])->name('admin.settings.test_local');
         Route::get('/settings/fetch-users', [App\Http\Controllers\Admin\SettingsController::class, 'fetchUsers'])->name('admin.settings.fetch_users');
+        Route::put('/admin/settings/users/{user}/update-email', [SettingsController::class, 'updateEmail'])->name('admin.users.update_email');
     });
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {

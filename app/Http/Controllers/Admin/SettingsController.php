@@ -320,22 +320,29 @@ public function toggleMaintenance()
 
 public function generalIndex()
 {
+    // Usamos pluck para obtener un array clave => valor
     $config = DB::table('settings')->pluck('value', 'key')->toArray();
+
+    // Aseguramos que si no existe la llave 'monto_cestaticket', pase un valor por defecto
+    if (!isset($config['monto_cestaticket'])) {
+        $config['monto_cestaticket'] = '0.00';
+    }
+
     return view('admin.settings.general', compact('config'));
 }
 
 public function updateGeneral(Request $request)
 {
-    // 1. Campos de texto plano
+    // 1. Agregamos 'monto_cestaticket' a la lista de campos de texto/numéricos
     $textFields = [
         'institucion_nombre', 'institucion_rif', 'institucion_siglas', 'institucion_direccion',
         'db_local_host', 'db_local_name', 'db_local_user',
-        'db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user'
+        'db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user',
+        'monto_cestaticket' // <-- Nuevo campo integrado
     ];
 
     foreach ($textFields as $field) {
         if ($request->has($field)) {
-            // Buscamos SOLO por 'key'. No pasamos el ID para que Postgres no choque.
             DB::table('settings')->updateOrInsert(
                 ['key' => $field],
                 ['value' => $request->get($field), 'updated_at' => now()]
@@ -343,7 +350,7 @@ public function updateGeneral(Request $request)
         }
     }
 
-    // 2. Guardar Contraseñas ENCRIPTADAS
+    // 2. Manejo de contraseñas y archivos (Se mantiene igual que tu código)
     if ($request->filled('db_local_pass')) {
         DB::table('settings')->updateOrInsert(
             ['key' => 'db_local_pass'],
@@ -358,33 +365,33 @@ public function updateGeneral(Request $request)
         );
     }
 
-    // 3. Lógica del Logo
     if ($request->hasFile('logo_archivo')) {
-        // Guardamos el archivo físicamente
         $path = $request->file('logo_archivo')->store('branding', 'public');
-
-        // Guardamos la ruta en la base de datos
         DB::table('settings')->updateOrInsert(
             ['key' => 'logo_path'],
             ['value' => $path, 'updated_at' => now()]
         );
     }
 
-    return back()->with('success', 'Configuración de la institución y bases de datos actualizada correctamente.');
+    return back()->with('success', 'Configuración institucional y de Cestaticket actualizada.');
 }
-public function testLocalConnection(Request $request)
-{
-    try {
-        config(['database.connections.temp_local' => [
-            'driver'   => 'pgsql', // Asegúrate que sea pgsql
-            'host'     => $request->db_local_host,
-            'port'     => $request->db_local_port ?? '5432',
-            'database' => $request->db_local_name,
-            'username' => $request->db_local_user,
-            'password' => $request->db_local_pass,
-            'charset'  => 'utf8',
-            'connect_timeout' => 5, // Falla rápido si no hay red
-            'sslmode'  => 'prefer',
+
+    public function testLocalConnection(Request $request)
+    {
+
+        try {
+
+            config(['database.connections.temp_local' => [
+
+                'driver'   => 'pgsql', // Asegúrate que sea pgsql
+                'host'     => $request->db_local_host,
+                'port'     => $request->db_local_port ?? '5432',
+                'database' => $request->db_local_name,
+                'username' => $request->db_local_user,
+                'password' => $request->db_local_pass,
+                'charset'  => 'utf8',
+                'connect_timeout' => 5, // Falla rápido si no hay red
+                'sslmode'  => 'prefer',
         ]]);
 
         DB::connection('temp_local')->getPdo();
@@ -420,18 +427,31 @@ public function testSigespConnection(Request $request)
 }
 
 
-public function updateEmail(Request $request, User $user) {
-    $request->validate(['email' => 'required|email|unique:users,email,' . $user->id]);
-    $user->update(['email' => $request->email]);
+public function updateEmail(Request $request, User $user)
+{
+    try {
+        $request->validate([
+            'email' => 'required|email|unique:users,email,' . $user->id
+        ]);
 
-    return response()->json(['success' => true]);
+        $user->update(['email' => $request->email]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Correo actualizado correctamente.'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage()
+        ], 422);
+    }
 }
 
 public function fetchUsers(Request $request)
 {
     $search = $request->input('search');
 
-    // Filtramos si hay una búsqueda, de lo contrario traemos todos
     $users = \App\Models\User::when($search, function ($query, $search) {
         return $query->where('cedula', 'like', "%{$search}%")
                      ->orWhere('name', 'like', "%{$search}%")
@@ -440,9 +460,21 @@ public function fetchUsers(Request $request)
     ->orderBy('name', 'asc')
     ->paginate(10);
 
-    // Importante: Mantener los parámetros de búsqueda en los links de paginación
-    $users->appends(['search' => $search]);
-
+    // IMPORTANTE: Verifica que este archivo exista en:
+    // resources/views/admin/settings/partials/users_table.blade.php
     return view('admin.settings.partials.users_table', compact('users'))->render();
+}
+public function updateCestaTicket(Request $request)
+{
+    $request->validate([
+        'monto' => 'required|numeric|min:0'
+    ]);
+
+    DB::table('settings')->updateOrInsert(
+        ['key' => 'monto_cestaticket'],
+        ['value' => $request->monto, 'updated_at' => now()]
+    );
+
+    return back()->with('success', 'Monto de Cestaticket actualizado correctamente.');
 }
 }

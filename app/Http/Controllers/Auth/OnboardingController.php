@@ -17,46 +17,54 @@ class OnboardingController extends Controller
     }
 
     // PASO 1: Verificar el correo ingresado (Prioridad Estper 1)
-    public function checkEmail(Request $request)
-    {
-        $request->validate(['email' => 'required|email']);
-        $email = strtolower(trim($request->email));
+   public function checkEmail(Request $request)
+{
+    $request->validate(['email' => 'required|email']);
+    $email = strtolower(trim($request->email));
 
-        // 1. Buscamos en SIGESP solo al que esté ACTIVO
-        // Esto descarta automáticamente a Jackson (estper 3) y prioriza a Juan Luis (estper 1)
+    // 1. PRIMERO: Verificamos si ya existe en nuestra base de datos local
+    $user = User::where('email', $email)->first();
+
+    if ($user) {
+        // EXCEPCIÓN PARA EL ADMIN: Si es rol_id 1, entra directo sin mirar SIGESP
+        if ($user->rol_id == 1) {
+            return redirect()->route('login')
+                             ->withInput(['email' => $email])
+                             ->with('user_verified', true);
+        }
+
+        // Si existe pero es empleado (rol_id != 1), SÍ validamos que siga activo en SIGESP
         $personalActivo = DB::connection('sigesp')->table('sno_personal')
             ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
             ->where('estper', '1')
             ->first();
 
         if (!$personalActivo) {
-            return back()->withErrors([
-                'email' => 'Acceso denegado: No existe una ficha activa vinculada a este correo.'
-            ]);
+            return back()->withErrors(['email' => 'Acceso denegado: Su ficha no figura como ACTIVA en SIGESP.']);
         }
 
-        // 2. Si hay ficha activa, verificamos si ya tiene cuenta de usuario
-        $user = User::where('email', $email)->first();
+        return redirect()->route('login')
+                         ->withInput(['email' => $email])
+                         ->with('user_verified', true);
+    }
 
-        if ($user) {
-            if ($user->is_locked) {
-                return back()->withErrors(['email' => 'Esta cuenta está bloqueada permanentemente.']);
-            }
+    // 2. Si NO existe en nuestra DB, buscamos en SIGESP para registro nuevo (Solo estper 1)
+    $personalNuevo = DB::connection('sigesp')->table('sno_personal')
+        ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
+        ->where('estper', '1')
+        ->first();
 
-            return redirect()->route('login')
-                             ->withInput(['email' => $email])
-                             ->with('user_verified', true);
-        }
-
-        // 3. Preparar registro para la ficha activa encontrada
+    if ($personalNuevo) {
         session([
             'register_email' => $email,
-            'register_codper' => trim($personalActivo->codper)
+            'register_codper' => trim($personalNuevo->codper)
         ]);
-
         return redirect()->route('auth.complete_register')
-                         ->with('success', 'Trabajador activo identificado: ' . trim($personalActivo->nomper));
+                         ->with('success', 'Trabajador identificado. Complete su registro.');
     }
+
+    return back()->withErrors(['email' => 'Este correo no coincide con nuestro archivo de personal activo.']);
+}
 
     // PASO 2: Mostrar formulario usando el CODPER de la sesión
     public function showRegisterForm()

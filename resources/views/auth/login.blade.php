@@ -37,6 +37,9 @@
                             <label for="email" class="col-md-4 col-form-label text-md-end">{{ __('Correo Institucional') }}</label>
                             <div class="col-md-6">
                                 <div class="input-group">
+                                    <span class="input-group-text bg-light text-secondary">
+                                        <i class="bi bi-envelope-fill"></i>
+                                    </span>
                                     <input id="email" type="email"
                                            class="form-control @error('email') is-invalid @enderror"
                                            name="email" value="{{ old('email') }}"
@@ -45,7 +48,7 @@
                                     @if($showPassword)
                                         {{-- Botón para resetear el formulario si el correo es incorrecto --}}
                                         <a href="{{ route('login') }}" class="btn btn-outline-secondary" title="Cambiar correo">
-                                            <i class="fas fa-redo"></i>
+                                            <i class="bi bi-arrow-counterclockwise"></i>
                                         </a>
                                     @endif
                                 </div>
@@ -57,12 +60,22 @@
                             <div class="row mb-3 animate__animated animate__fadeInDown">
                                 <label for="password" class="col-md-4 col-form-label text-md-end">{{ __('Contraseña') }}</label>
                                 <div class="col-md-6">
-                                    <input id="password" type="password"
-                                           class="form-control @error('password') is-invalid @enderror"
-                                           name="password" required autocomplete="current-password" autofocus>
-                                    @error('password')
-                                        <span class="invalid-feedback"><strong>{{ $message }}</strong></span>
-                                    @enderror
+        <div class="input-group">
+            <span class="input-group-text bg-light text-secondary">
+                <i class="bi bi-lock-fill"></i>
+            </span>
+
+            <input id="password" type="password"
+                   class="form-control @error('password') is-invalid @enderror"
+                   name="password" required autocomplete="current-password">
+
+
+
+            @error('password')
+                <span class="invalid-feedback" role="alert">
+                    <strong>{{ $message }}</strong>
+                </span>
+            @enderror
                                 </div>
                             </div>
 
