@@ -22,17 +22,22 @@ return new class extends Migration
 
     // Tabla de Nóminas (Espejo de sno_nomina)
     Schema::create('sno_nomina', function (Blueprint $table) {
+        $table->string('codemp');
         $table->string('codnom', 4)->primary();
         $table->string('desnom', 100);
+        $table->string('tipnom')->nullable();
         $table->timestamps();
     });
 
     // Tabla de Histórico de Periodos (sno_hperiodo)
     Schema::create('sno_hperiodo', function (Blueprint $table) {
         $table->id();
-        $table->string('codnom', 4);
-        $table->string('codper', 10);
-        $table->string('codperi', 3);
+        $table->string('codemp');
+        $table->string('codnom');
+        $table->string('codperi');
+        $table->date('fecdesper')->nullable();
+        $table->date('fechasper')->nullable();
+        $table->char('cerperi', 1)->nullable();
         $table->decimal('montotper', 15, 2); // Monto total
         $table->timestamps();
     });
