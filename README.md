@@ -96,17 +96,17 @@ El **SIGH 2025** no es solo un gestor de archivos; es un núcleo de auditoría q
     <tr>
       <td width="50%" align="center">
         <strong>📋 Gestión de Personal</strong><br>
-        <img src="screenshots/usuarios.png" alt="Lista de Usuarios" width="100%" style="border-radius:10px;">
+        <img src="screenshots/panel.png" alt="Lista de Usuarios" width="100%" style="border-radius:10px;">
         <p><i>Módulo de administración de perfiles y roles.</i></p>
       </td>
       <td width="50%" align="center">
-        <strong>🗃️ Historial de Nómina</strong><br>
-        <img src="screenshots/nomina.png" alt="Módulo Nómina" width="100%" style="border-radius:10px;">
+        <strong>🗃️ Vista Incial</strong><br>
+        <img src="screenshots/home.png" alt="Módulo Nómina" width="100%" style="border-radius:10px;">
         <p><i>Consulta y auditoría de datos integrados con PostgreSQL.</i></p>
       </td>
       <td width="50%" align="center">
          <strong>📄 Reportes PDF</strong><br>
-         <img src="screenshots/reporte_pdf.png" alt="Generación de PDF" width="100%" style="border-radius:10px;">
+         <img src="screenshots/pdfs.png" alt="Generación de PDF" width="100%" style="border-radius:10px;">
          <p><i>Documentos legales generados dinámicamente con datos de nómina.</i></p>
       </td>
     </tr>
