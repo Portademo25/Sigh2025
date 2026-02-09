@@ -16,18 +16,17 @@ public function index(Request $request)
     $fechaInicio = $request->input('fecha_inicio', now()->startOfYear()->format('Y-m-d'));
     $fechaFin = $request->input('fecha_fin', now()->format('Y-m-d'));
 
-    // 2. Inicializar variables para evitar el error "Undefined variable"
+    // 2. Inicializar variables
     $arcStats = array_fill(0, 12, 0);
     $reciboStats = array_fill(0, 12, 0);
     $constanciaStats = array_fill(0, 12, 0);
-    $labelsPie = [];
-    $datosPie = [];
 
     // 3. Consulta para la gráfica de barras (Tendencia Mensual)
+    // NOTA: Asegúrate que la tabla sea 'reporte_descargas' o 'historial_descargas'
     $reportesMensuales = DB::table('reporte_descargas')
         ->select(
             DB::raw('EXTRACT(MONTH FROM created_at) as mes'),
-            'tipo_reporte',
+            'tipo_reporte', 
             DB::raw('count(*) as total')
         )
         ->whereYear('created_at', date('Y'))
@@ -36,29 +35,30 @@ public function index(Request $request)
 
     foreach ($reportesMensuales as $dato) {
         $mesIndex = (int)$dato->mes - 1;
+        // IMPORTANTE: Los nombres deben coincidir EXACTAMENTE con lo que envía el controlador
         if ($dato->tipo_reporte == 'Planilla ARC') $arcStats[$mesIndex] = (int)$dato->total;
         if ($dato->tipo_reporte == 'Recibo de Pago') $reciboStats[$mesIndex] = (int)$dato->total;
         if ($dato->tipo_reporte == 'Constancia de Trabajo') $constanciaStats[$mesIndex] = (int)$dato->total;
     }
 
-    // 4. Consulta para la gráfica de torta (Distribución por Tipo)
+    // 4. Consulta para la gráfica de torta
     $distribucion = DB::table('reporte_descargas')
         ->select('tipo_reporte', DB::raw('count(*) as total'))
         ->whereBetween('created_at', [$fechaInicio . ' 00:00:00', $fechaFin . ' 23:59:59'])
         ->groupBy('tipo_reporte')
         ->get();
 
-    if ($distribucion->count() > 0) {
-        $labelsPie = $distribucion->pluck('tipo_reporte')->toArray();
-        $datosPie = $distribucion->pluck('total')->toArray();
-    }
+    $labelsPie = $distribucion->pluck('tipo_reporte')->toArray();
+    $datosPie = $distribucion->pluck('total')->toArray();
 
-    // 5. Otros datos necesarios para la vista
+    // 5. Datos adicionales
     $usuariosActivos = DB::table('users')->count();
     $totalHoy = DB::table('reporte_descargas')->whereDate('created_at', now())->count();
-    $ultimasDescargas = DB::table('reporte_descargas')->orderBy('created_at', 'desc')->limit(5)->get();
+    $ultimasDescargas = DB::table('reporte_descargas')
+        ->orderBy('created_at', 'desc')
+        ->limit(10) // Subimos a 10 para ver más movimiento
+        ->get();
 
-    // Ahora compact() siempre encontrará las variables, aunque estén vacías
     return view('admin.dashboard', compact(
         'arcStats', 'reciboStats', 'constanciaStats',
         'labelsPie', 'datosPie', 'fechaInicio', 'fechaFin',
@@ -105,5 +105,17 @@ public function exportarExcel(Request $request) {
     } catch (\Exception $e) {
         return back()->with('error', 'Error al exportar: ' . $e->getMessage());
     }
+}
+
+public static function registrarDescarga($personal, $tipoReporte, $detalles = null)
+{
+    DB::table('reporte_descargas')->insert([
+        'cedula' => $personal->cedper,
+        'nombre_trabajador' => strtoupper($personal->nomper . ' ' . $personal->apeper),
+        'tipo_reporte' => $tipoReporte, // Aquí debe entrar 'Recibo de Pago' o 'Constancia de Trabajo'
+        'detalles' => $detalles,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
 }
 }

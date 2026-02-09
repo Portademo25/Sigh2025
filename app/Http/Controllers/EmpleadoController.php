@@ -131,35 +131,38 @@ public function descargarPDF($codnom, $codperi)
     $v_codper  = str_pad($user->codper, 10, "0", STR_PAD_LEFT);
 
     try {
-        // 1. Datos del encabezado (Join con PERSONALNOMINA para la cuenta)
+        // 1. Datos del encabezado (Join con PERSONAL para el nombre y PERSONALNOMINA para la cuenta)
         $resumen = DB::connection('sigesp')
-            ->table('sno_hresumen as hr')
-            ->join('sno_nomina as n', 'hr.codnom', '=', 'n.codnom')
-            ->join('sno_hperiodo as hp', function($join) {
-                $join->on('hr.codnom', '=', 'hp.codnom')->on('hr.codperi', '=', 'hp.codperi');
-            })
-            // Aquí es donde realmente suele estar codcueban
-            ->join('sno_personalnomina as pn', function($join) {
-                $join->on('hr.codnom', '=', 'pn.codnom')
-                     ->on('hr.codper', '=', 'pn.codper');
-            })
-            ->select(
-                'hr.*', 
-                'n.desnom', 
-                'hp.fecdesper', 
-                'hp.fechasper', 
-                'pn.fecingper',
-                'pn.codcueban' // <--- CAMBIAMOS p. POR pn.
-            )
-            ->where([
-                ['hr.codnom', $v_codnom], 
-                ['hr.codperi', $v_codperi], 
-                ['hr.codper', $v_codper]
-            ])
-            ->first();
+    ->table('sno_hresumen as hr')
+    ->join('sno_nomina as n', 'hr.codnom', '=', 'n.codnom')
+    ->join('sno_hperiodo as hp', function($join) {
+        $join->on('hr.codnom', '=', 'hp.codnom')->on('hr.codperi', '=', 'hp.codperi');
+    })
+    ->join('sno_personalnomina as pn', function($join) {
+        $join->on('hr.codnom', '=', 'pn.codnom')
+             ->on('hr.codper', '=', 'pn.codper');
+    })
+    ->join('sno_personal as p', 'hr.codper', '=', 'p.codper')
+    ->select(
+        'hr.*', 
+        'n.desnom', 
+        'hp.fecdesper', 
+        'hp.fechasper', 
+        'pn.fecingper',
+        'pn.codcueban',
+        'p.nomper', 
+        'p.apeper',
+        'p.cedper' // <--- ASEGÚRATE DE INCLUIR ESTA LÍNEA AQUÍ
+    )
+    ->where([
+        ['hr.codnom', $v_codnom], 
+        ['hr.codperi', $v_codperi], 
+        ['hr.codper', $v_codper]
+    ])
+    ->first();
 
         if (!$resumen) {
-            return dd("No se encontró el registro en sno_personalnomina para este periodo.");
+            return dd("No se encontró el registro para este periodo.");
         }
 
         // Asignamos la cuenta al campo que lee el PDF
@@ -195,6 +198,19 @@ public function descargarPDF($codnom, $codperi)
 
         $totalDeducciones = $deducciones->sum('valcalcur');
 
+        // --- CAMBIO 1: REGISTRO PARA GRÁFICAS DEL DASHBOARD ---
+        $personalData = (object)[
+            'cedper' => $resumen->cedper,
+            'nomper' => $resumen->nomper,
+            'apeper' => $resumen->apeper
+        ];
+
+        \App\Http\Controllers\Admin\AdminReporteController::registrarDescarga(
+            $personalData, 
+            'Recibo de Pago', 
+            "Periodo: {$v_codperi} | Nomina: {$v_codnom}"
+        );
+
         // 4. Generación del PDF
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('empleado.reportes.recibo_pdf', [
             'resumen' => $resumen,
@@ -204,7 +220,12 @@ public function descargarPDF($codnom, $codperi)
             'totalDeducciones' => $totalDeducciones
         ]);
 
-        return $pdf->download("Recibo_{$v_codper}.pdf");
+        // --- CAMBIO 2: NOMBRE DEL ARCHIVO PERSONALIZADO ---
+        $nombreDoc = str_replace(' ', '_', trim($resumen->nomper));
+        $apellidoDoc = str_replace(' ', '_', trim($resumen->apeper));
+        $filename = "Recibo_{$nombreDoc}_{$apellidoDoc}_{$resumen->cedper}.pdf";
+
+        return $pdf->download(strtoupper($filename));
 
     } catch (\Exception $e) {
         return dd("Error al generar PDF: " . $e->getMessage());

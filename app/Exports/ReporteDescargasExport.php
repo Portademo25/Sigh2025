@@ -9,32 +9,44 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 
 class ReporteDescargasExport implements FromCollection, WithHeadings, WithMapping
 {
-    protected $inicio, $fin;
+    protected $inicio;
+    protected $fin;
 
-    public function __construct($inicio, $fin) {
+    public function __construct($inicio, $fin)
+    {
         $this->inicio = $inicio;
         $this->fin = $fin;
     }
 
-    public function collection() {
+    public function collection()
+    {
         return DB::table('reporte_descargas')
-            ->select('created_at', 'cedula', 'nombre_empleado', 'tipo_reporte', 'detalles')
             ->whereBetween('created_at', [$this->inicio . ' 00:00:00', $this->fin . ' 23:59:59'])
             ->orderBy('created_at', 'desc')
             ->get();
     }
 
-    public function headings(): array {
-        return ['Fecha', 'Cédula', 'Nombre Empleado', 'Documento', 'Detalles'];
+    // Definimos los encabezados del Excel
+    public function headings(): array
+    {
+        return [
+            'Fecha y Hora',
+            'Cédula',
+            'Trabajador',
+            'Tipo de Reporte',
+            'Detalles / Periodo',
+        ];
     }
 
-    public function map($descarga): array {
+    // Mapeamos los datos de la tabla a las columnas del Excel
+    public function map($reporte): array
+    {
         return [
-            $descarga->created_at,
-            $descarga->cedula,
-            $descarga->nombre_empleado,
-            $descarga->tipo_reporte,
-            $descarga->detalles,
+            \Carbon\Carbon::parse($reporte->created_at)->format('d/m/Y h:i A'),
+            $reporte->cedula,
+            $reporte->nombre_trabajador, // El campo que añadimos
+            $reporte->tipo_reporte,
+            $reporte->detalles,
         ];
     }
 }

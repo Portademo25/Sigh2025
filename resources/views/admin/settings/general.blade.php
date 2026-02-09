@@ -92,9 +92,9 @@
                         <div class="mb-3">
                             <div class="p-3 border rounded bg-light d-inline-block shadow-sm">
                                 <img id="logo-preview"
-                                     src="{{ (isset($config['logo_path']) && !empty($config['logo_path'])) ? asset('storage/'.$config['logo_path']) : asset('img/default-logo.png') }}"
+                                     src="{{ (isset($config['logo_path']) && !empty($config['logo_path'])) ? asset('storage/'.$config['logo_path']) : asset('images/logo-fona.png') }}"
                                      alt="Logo" style="max-height: 150px; width: auto;"
-                                     onerror="this.src='{{ asset('img/default-logo.png') }}'">
+                                     onerror="this.onerror=null; this.src='{{ asset('images/logo-fona.png') }}';">
                             </div>
                         </div>
                         <div class="input-group input-group-sm mb-3 px-3">
@@ -312,7 +312,7 @@ window.editEmail = function(id, email, name) {
  */
 document.addEventListener('DOMContentLoaded', function() {
 
-    window.loadUsers();
+    loadUsers();
 
     // B. Lupa de búsqueda
     const btnSearch = document.getElementById('btn-search-trigger');

@@ -13,7 +13,7 @@ use App\Http\Controllers\Admin\AdminReporteController;
 
 class ConstanciaController extends Controller
 {
-   public function pdfConstancia()
+  public function pdfConstancia()
 {
     $user = Auth::user();
     $v_codper = str_pad($user->codper, 10, "0", STR_PAD_LEFT);
@@ -39,26 +39,30 @@ class ConstanciaController extends Controller
 
         if (!$personal) { return dd("Trabajador no encontrado."); }
 
-        // 2. Beneficio de Alimentación (Cestaticket - DB Local)
-        $beneficioAlim = DB::table('balimentacion')->value('monto') ?? 7732.00;
+        // --- CAMBIO AQUÍ: 2. Beneficio de Alimentación (Desde Tabla Settings) ---
+        $montoSetting = DB::table('settings')
+            ->where('key', 'monto_cestaticket')
+            ->value('value');
+
+        // Si no existe en settings, puedes poner un valor por defecto o usar 0
+        $beneficioAlim = (!empty($montoSetting)) ? (float)$montoSetting : 0.00;
+        // ------------------------------------------------------------------------
 
         // 3. Cálculo de Sueldo Mensual (Filtrado)
         $ultimoAno = DB::connection('sigesp')->table('sno_hsalida')->where('codper', $v_codper)->max('anocur');
         $ultimoPeriodo = DB::connection('sigesp')->table('sno_hsalida')
             ->where('codper', $v_codper)->where('anocur', $ultimoAno)->max('codperi');
 
-        // IMPORTANTE: Aquí filtramos para evitar el error de los 37.000 Bs.
-        // Solo sumamos conceptos típicos de sueldo (001, 002, etc.) y evitamos duplicados erróneos
         $conceptos = DB::connection('sigesp')->table('sno_hsalida')
             ->where([
                 ['codper', $v_codper],
                 ['anocur', $ultimoAno],
                 ['codperi', $ultimoPeriodo],
                 ['valsal', '>', 0],
-                ['valsal', '<', 5000] // Filtro de seguridad: ignora montos atípicos en una sola quincena
+                ['valsal', '<', 5000] 
             ])
             ->whereIn('tipsal', ['A', 'A '])
-            ->whereIn('codconc', ['0000000001', '0000000002', '0000000006']) // Solo Sueldo Base y Primas fijas
+            ->whereIn('codconc', ['0000000001', '0000000002', '0000000006']) 
             ->get();
 
         $sueldoQuincenal = $conceptos->sum('valsal');
@@ -71,7 +75,7 @@ class ConstanciaController extends Controller
             'cedula' => $personal->cedper,
             'nombre_completo' => strtoupper($personal->nomper . ' ' . $personal->apeper),
             'sueldo_integral' => $sueldoMensual,
-            'monto_alimentacion' => $beneficioAlim,
+            'monto_alimentacion' => $beneficioAlim, // Se registra el monto dinámico
             'cargo' => strtoupper($personal->cargo),
             'unidad' => strtoupper($personal->unidad ?? 'OFICINA GENERAL'),
             'fecha_generacion' => now(),

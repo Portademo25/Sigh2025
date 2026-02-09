@@ -345,13 +345,11 @@ public function toggleMaintenance()
     return back()->with('success', $mensaje);
 }
 
-
 public function generalIndex()
 {
-    // Usamos pluck para obtener un array clave => valor
+    // Solo traemos configuraciones, NADA de usuarios aquí
     $config = DB::table('settings')->pluck('value', 'key')->toArray();
 
-    // Aseguramos que si no existe la llave 'monto_cestaticket', pase un valor por defecto
     if (!isset($config['monto_cestaticket'])) {
         $config['monto_cestaticket'] = '0.00';
     }
