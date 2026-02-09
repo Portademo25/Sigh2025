@@ -9,6 +9,18 @@
         <li class="breadcrumb-item active">General</li>
     </ol>
 
+    @if($errors->any())
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm border-0" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> <strong>¡Ups! Revisa los siguientes errores:</strong>
+        <ul class="mb-0 mt-2">
+            @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+            @endforeach
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show shadow-sm border-0" role="alert">
             <i class="bi bi-check-circle-fill me-2"></i> {{ session('success') }}
@@ -27,12 +39,22 @@
                     <div class="col-lg-8">
                         <div class="row g-3">
                             <div class="col-md-12">
-                                <label class="form-label fw-bold">Nombre del Organismo</label>
-                                <input type="text" name="institucion_nombre" class="form-control" value="{{ $config['institucion_nombre'] ?? 'Mi Institución' }}">
+                                <label class="form-label fw-bold">Nombre del Organismo <span class="text-danger">*</span></label>
+                                <input type="text" name="institucion_nombre" 
+                                     class="form-control @error('institucion_nombre') is-invalid @enderror" 
+                                     value="{{ old('institucion_nombre', $config['institucion_nombre'] ?? '') }}" 
+                                     required>
+                                @error('institucion_nombre')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label fw-bold">RIF</label>
-                                <input type="text" name="institucion_rif" class="form-control" value="{{ $config['institucion_rif'] ?? 'G-00000000-0' }}">
+                                <label class="form-label fw-bold">RIF <span class="text-danger">*</span></label>
+                                <input type="text" name="institucion_rif" 
+                                        class="form-control @error('institucion_rif') is-invalid @enderror" 
+                                        value="{{ old('institucion_rif', $config['institucion_rif'] ?? '') }}" 
+                                        placeholder="G-12345678-9"
+                                        required>
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">Siglas / Nombre Corto</label>
@@ -44,14 +66,15 @@
                                     <h6 class="text-success fw-bold mb-3"><i class="bi bi-cash-stack me-2"></i>Parámetros Globales de Nómina</h6>
                                     <div class="row align-items-center">
                                         <div class="col-md-7">
-                                            <label class="form-label small fw-bold text-dark">Monto Mensual Cestaticket (Bs.)</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-white text-success fw-bold">Bs.</span>
-                                                <input type="number" step="0.01" name="monto_cestaticket"
-                                                       class="form-control form-control-lg border-success text-success fw-bold"
-                                                       value="{{ $config['monto_cestaticket'] ?? '0.00' }}">
+                                           <label class="form-label small fw-bold text-dark">Monto Mensual Cestaticket (Bs.) <span class="text-danger">*</span></label>
+                                           <div class="input-group">
+                                               <span class="input-group-text bg-white text-success fw-bold">Bs.</span>
+                                               <input type="number" step="0.01" min="0" name="monto_cestaticket"
+                                                        class="form-control form-control-lg border-success text-success fw-bold @error('monto_cestaticket') is-invalid @enderror"
+                                                        value="{{ old('monto_cestaticket', $config['monto_cestaticket'] ?? '0.00') }}"
+                                                        required>
                                             </div>
-                                            <div class="form-text text-muted">Este valor se aplicará automáticamente en todos los cálculos y reportes del portal.</div>
+                                            <div class="form-text text-muted small">Este valor se aplicará automáticamente en todos los cálculos.</div>
                                         </div>
                                     </div>
                                 </div>
@@ -69,14 +92,15 @@
                         <div class="mb-3">
                             <div class="p-3 border rounded bg-light d-inline-block shadow-sm">
                                 <img id="logo-preview"
-                                     src="{{ isset($config['logo_path']) ? asset('storage/'.$config['logo_path']) : asset('img/default-logo.png') }}"
-                                     alt="Logo" style="max-height: 150px; width: auto;">
+                                     src="{{ (isset($config['logo_path']) && !empty($config['logo_path'])) ? asset('storage/'.$config['logo_path']) : asset('img/default-logo.png') }}"
+                                     alt="Logo" style="max-height: 150px; width: auto;"
+                                     onerror="this.src='{{ asset('img/default-logo.png') }}'">
                             </div>
                         </div>
                         <div class="input-group input-group-sm mb-3 px-3">
-                            <input type="file" name="logo_archivo" class="form-control" id="input-logo" accept="image/*">
+                            <input type="file" name="logo_archivo" class="form-control" id="input-logo" accept="image/png, image/jpeg">
                         </div>
-                        <small class="text-muted d-block px-3">Se recomienda PNG con fondo transparente.</small>
+                        <small class="text-muted d-block px-3">PNG o JPG (Máx. 2MB).</small>
                     </div>
                 </div>
 
@@ -104,7 +128,12 @@
                                     </div>
                                     <div class="col-md-6 mb-2">
                                         <label class="small fw-bold">Contraseña</label>
-                                        <input type="password" name="db_local_pass" class="form-control" placeholder="••••••••">
+                                        <div class="input-group">
+                                            <input type="password" name="db_local_pass" class="form-control" placeholder="••••••••">
+                                            <button class="btn btn-outline-secondary btn-toggle-password" type="button">
+                                                <i class="bi bi-eye-slash"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 <button type="button" id="btn-test-local" class="btn btn-outline-dark btn-sm w-100 mt-2">
@@ -118,7 +147,7 @@
                     <div class="col-md-6">
                         <div class="card h-100 border-0 shadow-sm bg-light">
                             <div class="card-header bg-danger text-white py-3">
-                                <h6 class="mb-0"><i class="bi bi-database-fill-lock me-2"></i>Base de Datos SIGESP </h6>
+                                <h6 class="mb-0"><i class="bi bi-database-fill-lock me-2"></i>Base de Datos SIGESP</h6>
                             </div>
                             <div class="card-body">
                                 <div class="row">
@@ -142,7 +171,12 @@
                                     </div>
                                     <div class="col-md-6 mb-2">
                                         <label class="small fw-bold">Contraseña SIGESP</label>
-                                        <input type="password" name="db_sigesp_pass" class="form-control" placeholder="••••••••">
+                                        <div class="input-group">
+                                            <input type="password" name="db_sigesp_pass" class="form-control" placeholder="••••••••">
+                                            <button class="btn btn-outline-secondary btn-toggle-password" type="button">
+                                                <i class="bi bi-eye-slash"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                                 <button type="button" id="btn-test-sigesp" class="btn btn-outline-danger btn-sm w-100 mt-2">
@@ -155,7 +189,7 @@
                 </div>
 
                 <div class="mt-4 pt-3 border-top text-end">
-                    <button type="submit" class="btn btn-success px-5 shadow-sm">
+                    <button type="submit" class="btn btn-success px-5 shadow-sm rounded-pill">
                         <i class="bi bi-save me-2"></i>Guardar Cambios Globales
                     </button>
                 </div>
@@ -163,21 +197,18 @@
         </div>
     </div>
 
-    <div class="row mt-5">
-        <div class="col-12">
-    <div class="card border-0 shadow-sm">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+    <div class="card border-0 shadow-sm mt-5">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
             <h5 class="mb-0 text-primary fw-bold">
                 <i class="bi bi-people-fill me-2"></i> Gestión de Trabajadores
             </h5>
             <div class="input-group input-group-sm w-auto">
                 <input type="text" id="user-search" class="form-control" placeholder="Cédula o nombre..." onkeyup="delaySearch()">
-                <button class="input-group-text bg-light" id="btn-search-trigger" style="cursor:pointer">
+                <button class="input-group-text bg-light" id="btn-search-trigger">
                     <i class="bi bi-search"></i>
                 </button>
             </div>
         </div>
-
         <div id="users-table-container">
             <div class="text-center p-5">
                 <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
@@ -186,45 +217,34 @@
         </div>
     </div>
 </div>
-        </div>
-</div>
 
-<!-- Modal Edición Rápida de Email -->
-<div class="modal fade" id="modalEditEmail" tabindex="-1" aria-labelledby="modalEditEmailLabel" aria-hidden="true">
+<div class="modal fade" id="modalEditEmail" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="modalEditEmailLabel">
+                <h5 class="modal-title">
                     <i class="bi bi-envelope-at-fill me-2"></i>Actualizar Correo
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="formQuickEmail">
                 <div class="modal-body p-4">
-                    <input type="hidden" id="modal-user-id" name="user_id">
-
+                    <input type="hidden" id="modal-user-id">
                     <div class="mb-3">
                         <label class="form-label fw-bold mb-1">Trabajador:</label>
-                        <div id="modal-user-name" class="form-control-plaintext text-primary fw-bold py-0 mb-3"></div>
+                        <div id="modal-user-name" class="form-control-plaintext text-primary fw-bold py-0 mb-3 small"></div>
 
-                        <label class="form-label fw-bold">Nuevo Correo Electrónico:</label>
+                        <label class="form-label fw-bold small">Nuevo Correo Electrónico:</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-light text-primary">
-                                <i class="bi bi-envelope-fill"></i>
-                            </span>
-                            <input type="email" id="modal-user-email" name="email"
-                                   class="form-control border-start-0"
-                                   placeholder="ejemplo@correo.com" required>
-                        </div>
-                        <div class="form-text mt-2 small">
-                            <i class="bi bi-info-circle me-1"></i> Ingrese la dirección institucional o personal activa.
+                            <span class="input-group-text bg-light text-primary"><i class="bi bi-envelope-fill"></i></span>
+                            <input type="email" id="modal-user-email" class="form-control" placeholder="ejemplo@correo.com" required>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                    <button type="submit" id="btnSaveEmail" class="btn btn-primary px-4 shadow-sm">
-                        <i class="bi bi-check2-circle me-1"></i> Guardar Cambios
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="submit" id="btnSaveEmail" class="btn btn-primary btn-sm px-4 shadow-sm">
+                        Guardar Cambios
                     </button>
                 </div>
             </form>
@@ -234,11 +254,9 @@
 <script>
 /**
  * 1. FUNCIONES GLOBALES
- * (Se definen fuera para que los botones cargados por AJAX las encuentren)
  */
 let searchTimer;
 
-// Función para buscar mientras escribes (Debounce)
 window.delaySearch = function() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(function() {
@@ -247,15 +265,11 @@ window.delaySearch = function() {
     }, 500);
 };
 
-// UNIFICADA: Función de carga única que soporta paginación y búsqueda
 window.loadUsers = function(page = 1, search = '') {
     const container = document.getElementById('users-table-container');
     if (!container) return;
-
-    // Feedback visual
     container.style.opacity = '0.5';
 
-    // Si no se pasa búsqueda, intentamos tomarla del input directamente
     if (search === '') {
         const input = document.getElementById('user-search');
         search = input ? input.value : '';
@@ -266,8 +280,6 @@ window.loadUsers = function(page = 1, search = '') {
     .then(html => {
         container.innerHTML = html;
         container.style.opacity = '1';
-
-        // Re-vincular eventos de paginación
         document.querySelectorAll('#user-pagination a').forEach(link => {
             link.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -282,23 +294,17 @@ window.loadUsers = function(page = 1, search = '') {
     });
 };
 
-// Función para abrir el modal de edición de email
 window.editEmail = function(id, email, name) {
     try {
         document.getElementById('modal-user-id').value = id;
         document.getElementById('modal-user-email').value = email;
         document.getElementById('modal-user-name').innerText = name;
-
         const modalEl = document.getElementById('modalEditEmail');
         if (typeof bootstrap !== 'undefined') {
             const modalInst = bootstrap.Modal.getOrCreateInstance(modalEl);
             modalInst.show();
-        } else {
-            alert("Error: Bootstrap no está cargado.");
         }
-    } catch (err) {
-        console.error("Error en editEmail:", err);
-    }
+    } catch (err) { console.error(err); }
 };
 
 /**
@@ -306,15 +312,13 @@ window.editEmail = function(id, email, name) {
  */
 document.addEventListener('DOMContentLoaded', function() {
 
-    // A. Carga inicial
     window.loadUsers();
 
     // B. Lupa de búsqueda
     const btnSearch = document.getElementById('btn-search-trigger');
     if(btnSearch) {
         btnSearch.addEventListener('click', function() {
-            const query = document.getElementById('user-search').value;
-            window.loadUsers(1, query);
+            window.loadUsers(1, document.getElementById('user-search').value);
         });
     }
 
@@ -323,50 +327,35 @@ document.addEventListener('DOMContentLoaded', function() {
     if (formQuickEmail) {
         formQuickEmail.addEventListener('submit', function(e) {
             e.preventDefault();
-
-            const id = document.getElementById('modal-user-id').value;
-            const newEmail = document.getElementById('modal-user-email').value;
             const btn = document.getElementById('btnSaveEmail');
-
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-            // Ruta ajustada a tu estructura de controlador
-            fetch(`/admin/users/${id}/update-email`, {
+            fetch(`/admin/users/${document.getElementById('modal-user-id').value}/update-email`, {
                 method: 'PUT',
                 headers: {
                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({ email: newEmail })
+                body: JSON.stringify({ email: document.getElementById('modal-user-email').value })
             })
             .then(res => res.json())
             .then(data => {
                 if(data.success) {
-                    // Actualizar texto en la tabla
-                    const celdaEmail = document.getElementById(`email-display-${id}`);
-                    if(celdaEmail) celdaEmail.innerText = newEmail;
-
-                    // Cerrar modal correctamente
-                    const modalEl = document.getElementById('modalEditEmail');
-                    const modalInst = bootstrap.Modal.getInstance(modalEl);
-                    if (modalInst) modalInst.hide();
-
-                    alert("¡Correo actualizado con éxito!");
-                } else {
-                    alert('Error: ' + (data.message || 'No se pudo actualizar'));
-                }
+                    const id = document.getElementById('modal-user-id').value;
+                    document.getElementById(`email-display-${id}`).innerText = document.getElementById('modal-user-email').value;
+                    bootstrap.Modal.getInstance(document.getElementById('modalEditEmail')).hide();
+                } else { alert(data.message); }
             })
-            .catch(error => alert("Error de conexión al servidor"))
             .finally(() => {
                 btn.disabled = false;
-                btn.innerHTML = 'Guardar';
+                btn.innerHTML = 'Guardar Cambios';
             });
         });
     }
 
-    // D. Función Maestra para pruebas de conexión
+    // D. Pruebas de conexión
     window.probarConexion = function(btnId, resultId, route, inputs) {
         const btn = document.getElementById(btnId);
         const resultDiv = document.getElementById(resultId);
@@ -375,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             btn.disabled = true;
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Probando...';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
             resultDiv.innerHTML = '';
 
             const formData = new FormData();
@@ -392,13 +381,10 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    resultDiv.innerHTML = `<div class="alert alert-success mt-2 py-1 px-2 small"><i class="bi bi-check-circle-fill"></i> ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="text-success mt-2 small"><i class="bi bi-check-circle-fill"></i> ${data.message}</div>`;
                 } else {
-                    resultDiv.innerHTML = `<div class="alert alert-danger mt-2 py-1 px-2 small"><i class="bi bi-exclamation-triangle-fill"></i> ${data.message}</div>`;
+                    resultDiv.innerHTML = `<div class="text-danger mt-2 small"><i class="bi bi-x-circle-fill"></i> ${data.message}</div>`;
                 }
-            })
-            .catch(err => {
-                resultDiv.innerHTML = `<div class="alert alert-warning mt-2 py-1 px-2 small">Error de comunicación</div>`;
             })
             .finally(() => {
                 btn.disabled = false;
@@ -407,12 +393,116 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     };
 
-    // Inicializar botones de test
-    probarConexion('btn-test-local', 'result-local', '{{ route("admin.settings.test_local") }}',
-        ['db_local_host', 'db_local_name', 'db_local_user', 'db_local_pass', 'db_local_port']);
+    probarConexion('btn-test-local', 'result-local', '{{ route("admin.settings.test_local") }}', ['db_local_host', 'db_local_name', 'db_local_user', 'db_local_pass']);
+    probarConexion('btn-test-sigesp', 'result-sigesp', '{{ route("admin.settings.test_sigesp") }}', ['db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user', 'db_sigesp_pass']);
 
-    probarConexion('btn-test-sigesp', 'result-sigesp', '{{ route("admin.settings.test_sigesp") }}',
-        ['db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user', 'db_sigesp_pass']);
+    // E. GESTIÓN DE LOGO
+    const inputLogo = document.getElementById('input-logo');
+    const previewLogo = document.getElementById('logo-preview');
+    if (inputLogo && previewLogo) {
+        inputLogo.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type) || file.size > 2 * 1024 * 1024) {
+                    alert("Archivo no válido o muy pesado.");
+                    this.value = ''; return;
+                }
+                const reader = new FileReader();
+                reader.onload = (e) => { previewLogo.src = e.target.result; };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // F. MÁSCARA RIF Y VALIDACIÓN VISUAL
+    const inputRif = document.querySelector('input[name="institucion_rif"]');
+    if (inputRif) {
+        inputRif.addEventListener('input', function(e) {
+            let value = e.target.value.toUpperCase().replace(/[^GJV0-9]/g, '');
+            if (value.length > 0) {
+                let letter = value.charAt(0).match(/[GJV]/) ? value.charAt(0) : 'G';
+                let numbers = value.substring(1).replace(/[^0-9]/g, '');
+                if (numbers.length > 8) {
+                    e.target.value = `${letter}-${numbers.substring(0, 8)}-${numbers.charAt(8)}`;
+                } else if (numbers.length > 0) {
+                    e.target.value = `${letter}-${numbers}`;
+                } else { e.target.value = letter; }
+            }
+            const isValid = /^[VGJ]-[0-9]{8}-[0-9]$/i.test(e.target.value);
+            e.target.classList.toggle('is-valid', isValid);
+            e.target.classList.toggle('is-invalid', !isValid && e.target.value.length > 5);
+        });
+    }
+
+    // G. VALIDACIÓN GENERAL EN TIEMPO REAL
+    const inputsToValidate = ['institucion_nombre', 'monto_cestaticket', 'db_local_host'];
+    inputsToValidate.forEach(name => {
+        const el = document.querySelector(`input[name="${name}"]`);
+        if (el) {
+            el.addEventListener('input', function() {
+                const isValid = el.value.trim() !== '' && (el.type !== 'number' || el.value >= 0);
+                el.classList.toggle('is-valid', isValid);
+                el.classList.toggle('is-invalid', !isValid);
+            });
+        }
+    });
+
+    // H. VALIDACIÓN ESPECÍFICA PARA SIGESP
+    const sigespInputs = {
+        'db_sigesp_host': /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^[a-zA-Z0-9.-]+$/,
+        'db_sigesp_port': /^[0-9]{2,5}$/,
+        'db_sigesp_name': /.+/,
+        'db_sigesp_user': /^[a-zA-Z0-9_]{3,30}$/
+    };
+
+    Object.keys(sigespInputs).forEach(name => {
+        const el = document.querySelector(`input[name="${name}"]`);
+        if (el) {
+            el.addEventListener('input', function() {
+                const pattern = sigespInputs[name];
+                const isValid = pattern.test(el.value.trim());
+                el.classList.toggle('is-valid', isValid);
+                el.classList.toggle('is-invalid', !isValid && el.value.length > 0);
+            });
+        }
+    });
+
+    // ==========================================
+    // I. VALIDACIÓN DE CONTRASEÑAS
+    // ==========================================
+    const passwordFields = ['db_local_pass', 'db_sigesp_pass'];
+    passwordFields.forEach(name => {
+        const el = document.querySelector(`input[name="${name}"]`);
+        if (el) {
+            el.addEventListener('input', function() {
+                if (el.value.length > 0) {
+                    const isSecure = el.value.length >= 4;
+                    el.classList.toggle('is-valid', isSecure);
+                    el.classList.toggle('is-invalid', !isSecure);
+                } else {
+                    el.classList.remove('is-valid', 'is-invalid');
+                }
+            });
+        }
+    });
+
+    // ==========================================
+    // J. FUNCIONALIDAD PARA VER CONTRASEÑAS (OJO)
+    // ==========================================
+    document.querySelectorAll('.btn-toggle-password').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const input = this.closest('.input-group').querySelector('input');
+            const icon = this.querySelector('i');
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.replace('bi-eye-slash', 'bi-eye');
+            } else {
+                input.type = 'password';
+                icon.classList.replace('bi-eye', 'bi-eye-slash');
+            }
+        });
+    });
 });
 </script>
 @endsection

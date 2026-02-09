@@ -55,30 +55,40 @@ public function generarArc($ano)
         }
 
         // 3. Consulta de Remuneraciones
-        $nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0015', '0016', '0017', '0018', '0019', '0020', '0051', '0052', '0053', '0054', '0055', '0056'];
+        // 3. Consulta de Remuneraciones AJUSTADA (Solo P1 y Filtro de Seguridad)
+$nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0009', '0010', '0011', '0012', '0013', '0014', '0051', '0052', '0053', '0054', '0055', '0056'];
 
-        $detalles = DB::connection('sigesp')
-            ->table('sno_hsalida as hs')
-            ->join('sno_hperiodo as hp', function($join) {
-                $join->on('hs.codnom', '=', 'hp.codnom')
-                     ->on('hs.codperi', '=', 'hp.codperi');
-            })
-            ->select(
-                DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'A' AND hs.codnom IN ('" . implode("','", $nominasARC) . "') THEN ABS(hs.valsal) ELSE 0 END) as asignacion"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000500' THEN ABS(hs.valsal) ELSE 0 END) as monto_sso"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000002' THEN ABS(hs.valsal) ELSE 0 END) as monto_inces"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND LPAD(TRIM(hs.codconc), 10, '0') = '0000000503' THEN ABS(hs.valsal) ELSE 0 END) as monto_pension"),
-            )
-            ->where('hs.codper', $v_codper)
-            ->whereYear('hp.fecdesper', $ano)
-            ->groupBy('mes')
-            ->orderBy('mes')
-            ->get();
-
+$detalles = DB::connection('sigesp')
+    ->table('sno_hsalida as hs')
+    ->join('sno_hperiodo as hp', function($join) {
+        $join->on('hs.codnom', '=', 'hp.codnom')
+             ->on('hs.codperi', '=', 'hp.codperi');
+    })
+    ->select(
+        DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
+        
+        // ASIGNACIONES: Suma conceptos 001, 002 y 006 (Sueldo y Primas)
+        // Ignora cualquier registro individual mayor a 5000 para limpiar el error de Enero
+        DB::raw("SUM(CASE 
+            WHEN hs.tipsal IN ('A', 'A ') 
+            AND hs.valsal < 5000 
+            AND hs.codconc IN ('0000000001', '0000000002', '0000000006') 
+            THEN ABS(hs.valsal) ELSE 0 END) as asignacion"),
+        
+        // RETENCIONES: Solo tipo P1 como solicitaste
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000500' THEN ABS(hs.valsal) ELSE 0 END) as monto_sso"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000002' THEN ABS(hs.valsal) ELSE 0 END) as monto_inces"),
+        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000503' THEN ABS(hs.valsal) ELSE 0 END) as monto_pension")
+    )
+    ->where('hs.codper', $v_codper)
+    ->whereIn('hs.codnom', $nominasARC)
+    ->whereYear('hp.fecdesper', $ano)
+    ->groupBy('mes')
+    ->orderBy('mes')
+    ->get();
         // 4. Token y QR
         $token = Str::random(32);
         $qrCode = base64_encode(QrCode::format('svg')->size(80)->margin(0)->generate(route('arc.verificar', $token)));

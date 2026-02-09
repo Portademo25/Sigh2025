@@ -88,9 +88,9 @@ return [
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+            'database' => env('DB_DATABASE', 'Sigh2026'),
+            'username' => env('DB_USERNAME', 'postgres'),
+            'password' => env('DB_PASSWORD', '25041997'),
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'schema' => ['public', 'sno'], // <--- AGREGA 'sno' AQUÍ
@@ -116,9 +116,9 @@ return [
 
        'sigesp' => [
         'driver' => 'pgsql',
-        'host' => env('DB_SIGESP_HOST', '192.168.6.126'),
+        'host' => env('DB_SIGESP_HOST', '192.168.6.138'),
         'port' => env('DB_SIGESP_PORT', '5432'),
-        'database' => env('DB_SIGESP_DATABASE', 'prueba_fona_2025'),
+        'database' => env('DB_SIGESP_DATABASE', 'db_fona_2026'),
         'username' => env('DB_SIGESP_USERNAME', 'postgres'),
         'password' => env('DB_SIGESP_PASSWORD', '123456'),
         'charset' => 'utf8',

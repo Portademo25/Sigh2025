@@ -13,123 +13,109 @@ use App\Http\Controllers\Admin\AdminReporteController;
 
 class ConstanciaController extends Controller
 {
-    public function pdfConstancia()
-    {
-        $user = Auth::user();
-        // Ajustar código de persona a 10 dígitos (estándar SIGESP)
-        $v_codper = str_pad($user->codper, 10, "0", STR_PAD_LEFT);
+   public function pdfConstancia()
+{
+    $user = Auth::user();
+    $v_codper = str_pad($user->codper, 10, "0", STR_PAD_LEFT);
 
-        try {
-            // 1. Datos del Personal (Desde SIGESP)
-            $personal = DB::connection('sigesp')
-    ->table('sno_personal as p')
-    ->join('sno_personalnomina as pn', 'p.codper', '=', 'pn.codper')
-    ->join('sno_nomina as n', 'pn.codnom', '=', 'n.codnom')
-    // Agregamos el join con la tabla de cargos real
-    ->join('sno_cargo as c', function($join) {
-        $join->on('pn.codnom', '=', 'c.codnom')
-             ->on('pn.codcar', '=', 'c.codcar');
-    })
-    ->leftJoin('sno_unidadadmin as ua', function($join) {
-        $join->on('pn.minorguniadm', '=', 'ua.minorguniadm')
-             ->on('pn.uniuniadm', '=', 'ua.uniuniadm')
-             ->on('pn.depuniadm', '=', 'ua.depuniadm')
-             ->on('pn.prouniadm', '=', 'ua.prouniadm');
-    })
-    ->select(
-        'p.nomper',
-        'p.apeper',
-        'p.cedper',
-        'pn.fecingper',
-        'c.descar as cargo', // <--- CAMBIAMOS n.desnom POR c.descar
-        'ua.desuniadm as unidad'
-    )
-    ->where('p.codper', $v_codper)
-    // Importante: SIGESP a veces tiene registros históricos, tomamos el activo
-    ->where('pn.staper', '1')
-    ->first();
+    try {
+        // 1. Datos del Personal (SIGESP)
+        $personal = DB::connection('sigesp')
+            ->table('sno_personal as p')
+            ->join('sno_personalnomina as pn', 'p.codper', '=', 'pn.codper')
+            ->join('sno_cargo as c', function($join) {
+                $join->on('pn.codnom', '=', 'c.codnom')->on('pn.codcar', '=', 'c.codcar');
+            })
+            ->leftJoin('sno_unidadadmin as ua', function($join) {
+                $join->on('pn.minorguniadm', '=', 'ua.minorguniadm')
+                     ->on('pn.uniuniadm', '=', 'ua.uniuniadm')
+                     ->on('pn.depuniadm', '=', 'ua.depuniadm')
+                     ->on('pn.prouniadm', '=', 'ua.prouniadm');
+            })
+            ->select('p.nomper','p.apeper','p.cedper','pn.fecingper','c.descar as cargo','ua.desuniadm as unidad')
+            ->where('p.codper', $v_codper)
+            ->where('pn.staper', '1')
+            ->first();
 
-            if (!$personal) {
-                return dd("Error: Trabajador no encontrado en SIGESP.");
-            }
+        if (!$personal) { return dd("Trabajador no encontrado."); }
 
-            // 2. Beneficio de Alimentación (Base de datos Local)
-            $beneficioAlim = DB::table('balimentacion')->value('monto') ?? 7732.00;
+        // 2. Beneficio de Alimentación (Cestaticket - DB Local)
+        $beneficioAlim = DB::table('balimentacion')->value('monto') ?? 7732.00;
 
-            // 3. Cálculo de Sueldo Mensual (SIGESP)
-            $ultimoPeriodo = DB::connection('sigesp')->table('sno_hsalida')->where('codper', $v_codper)->max('codperi');
-            $conceptos = DB::connection('sigesp')->table('sno_hsalida')
-                ->where([['codper', $v_codper], ['codperi', $ultimoPeriodo], ['valsal', '>', 0]])
-                ->whereIn('tipsal', ['A', 'A '])
-                ->get();
+        // 3. Cálculo de Sueldo Mensual (Filtrado)
+        $ultimoAno = DB::connection('sigesp')->table('sno_hsalida')->where('codper', $v_codper)->max('anocur');
+        $ultimoPeriodo = DB::connection('sigesp')->table('sno_hsalida')
+            ->where('codper', $v_codper)->where('anocur', $ultimoAno)->max('codperi');
 
-            // Multiplicamos por 2 asumiendo que el histórico es quincenal (ajustar según su nómina)
-            $sueldoMensual = $conceptos->sum('valsal') * 2;
+        // IMPORTANTE: Aquí filtramos para evitar el error de los 37.000 Bs.
+        // Solo sumamos conceptos típicos de sueldo (001, 002, etc.) y evitamos duplicados erróneos
+        $conceptos = DB::connection('sigesp')->table('sno_hsalida')
+            ->where([
+                ['codper', $v_codper],
+                ['anocur', $ultimoAno],
+                ['codperi', $ultimoPeriodo],
+                ['valsal', '>', 0],
+                ['valsal', '<', 5000] // Filtro de seguridad: ignora montos atípicos en una sola quincena
+            ])
+            ->whereIn('tipsal', ['A', 'A '])
+            ->whereIn('codconc', ['0000000001', '0000000002', '0000000006']) // Solo Sueldo Base y Primas fijas
+            ->get();
 
-            // 4. Generación de Token Único y Guardado en DB Local
-            $token = Str::random(32); // Generamos un token largo y seguro
-            DB::table('constancias_generadas')->insert([
-    'token'              => $token,
-    'cedula'             => $personal->cedper,
-    'nombre_completo'    => strtoupper($personal->nomper . ' ' . $personal->apeper),
-    'sueldo_integral'    => $sueldoMensual,
-    'monto_alimentacion' => $beneficioAlim,
-    'cargo'              => strtoupper($personal->cargo),
-    'unidad'             => strtoupper($personal->unidad ?? 'OFICINA GENERAL'),
-    'fecha_generacion'   => now(),
-    'created_at'         => now(),
-]);
+        $sueldoQuincenal = $conceptos->sum('valsal');
+        $sueldoMensual = $sueldoQuincenal * 2;
 
-            // 5. Conversión de Montos a Letras
-            $formatter = new \NumberFormatter("es", \NumberFormatter::SPELLOUT);
+        // 4. Token y Registro
+        $token = Str::random(32);
+        DB::table('constancias_generadas')->insert([
+            'token' => $token,
+            'cedula' => $personal->cedper,
+            'nombre_completo' => strtoupper($personal->nomper . ' ' . $personal->apeper),
+            'sueldo_integral' => $sueldoMensual,
+            'monto_alimentacion' => $beneficioAlim,
+            'cargo' => strtoupper($personal->cargo),
+            'unidad' => strtoupper($personal->unidad ?? 'OFICINA GENERAL'),
+            'fecha_generacion' => now(),
+            'created_at' => now(),
+        ]);
 
-            $sueldoTexto = strtoupper($formatter->format(floor($sueldoMensual)));
-            $sueldoCents = str_pad(round(($sueldoMensual - floor($sueldoMensual)) * 100), 2, "0", STR_PAD_LEFT);
+        // 5. Conversión a Letras (Sueldo y Cestaticket)
+        $formatter = new \NumberFormatter("es", \NumberFormatter::SPELLOUT);
 
-            $alimTexto = strtoupper($formatter->format(floor($beneficioAlim)));
-            $alimCents = str_pad(round(($beneficioAlim - floor($beneficioAlim)) * 100), 2, "0", STR_PAD_LEFT);
+        // Formato Sueldo
+        $sueldoTexto = strtoupper($formatter->format(floor($sueldoMensual)));
+        $sueldoCents = str_pad(round(($sueldoMensual - floor($sueldoMensual)) * 100), 2, "0", STR_PAD_LEFT);
 
-            // 6. Preparación de Datos para la Vista
-            $data = [
-                'ls_nombres'                => strtoupper($personal->nomper),
-                'ls_apellidos'              => strtoupper($personal->apeper),
-                'ls_cedula'                 => number_format($personal->cedper, 0, '', '.'),
-                'ld_fecha_ingreso'          => Carbon::parse($personal->fecingper)->format('d/m/Y'),
-                'ls_cargo'                  => strtoupper($personal->cargo),
-                'ls_unidad_administrativa'  => strtoupper($personal->unidad ?? 'OFICINA GENERAL'),
-                'li_mensual_inte_sueldo'    => $sueldoTexto . " BOLÍVARES CON " . $sueldoCents . "/100 (Bs. " . number_format($sueldoMensual, 2, ',', '.') . ")",
-                'ls_monto_alimentacion'     => $alimTexto . " BOLÍVARES CON " . $alimCents . "/100 (Bs. " . number_format($beneficioAlim, 2, ',', '.') . ")",
-                'ls_dia'                    => date('d'),
-                'ls_mes'                    => $this->getMesNombre(date('m')),
-                'ls_ano'                    => date('Y'),
-            ];
+        // Formato Alimentación
+        $alimTexto = strtoupper($formatter->format(floor($beneficioAlim)));
+        $alimCents = str_pad(round(($beneficioAlim - floor($beneficioAlim)) * 100), 2, "0", STR_PAD_LEFT);
 
-            // 7. Generación del QR basado en el TOKEN (No en la cédula)
-            $urlVerificacion = route('constancia.verificar', ['token' => $token]);
+        // 6. Data para la Vista
+        $data = [
+            'ls_nombres' => strtoupper($personal->nomper),
+            'ls_apellidos' => strtoupper($personal->apeper),
+            'ls_cedula' => number_format($personal->cedper, 0, '', '.'),
+            'ld_fecha_ingreso' => \Carbon\Carbon::parse($personal->fecingper)->format('d/m/Y'),
+            'ls_cargo' => strtoupper($personal->cargo),
+            'ls_unidad_administrativa' => strtoupper($personal->unidad ?? 'OFICINA GENERAL'),
+            'li_mensual_inte_sueldo' => $sueldoTexto . " BOLÍVARES CON " . $sueldoCents . "/100 (Bs. " . number_format($sueldoMensual, 2, ',', '.') . ")",
+            'ls_monto_alimentacion' => $alimTexto . " BOLÍVARES CON " . $alimCents . "/100 (Bs. " . number_format($beneficioAlim, 2, ',', '.') . ")",
+            'ls_dia' => date('d'),
+            'ls_mes' => $this->getMesNombre(date('m')),
+            'ls_ano' => date('Y'),
+            'qrCode' => base64_encode(QrCode::format('svg')->size(100)->margin(0)->generate(route('constancia.verificar', $token)))
+        ];
 
-            $data['qrCode'] = base64_encode(QrCode::format('svg')
-                ->size(100)
-                ->margin(0)
-                ->generate($urlVerificacion));
+        // 8. Registro de descarga y PDF
+        AdminReporteController::registrarDescarga($personal, 'Constancia de Trabajo', "Token: " . substr($token, 0, 8));
+        
+        return Pdf::loadView('empleado.reportes.constancia_pdf', $data)
+                  ->setOption('dpi', 96)
+                  ->stream("Constancia_Trabajo.pdf");
 
-            // 8. Generación del PDF
-           // Busca la línea donde registras y asegúrate de que sea así:
-
-    AdminReporteController::registrarDescarga(
-    $personal,
-    'Constancia de Trabajo',
-    "Token: " . substr($token, 0, 8)
-);
-            $nombreArchivo = "Constancia de Trabajador " . $personal->nomper . " " . $personal->apeper . ".pdf";
-
-            return Pdf::loadView('empleado.reportes.constancia_pdf', $data)
-                      ->setOption('dpi', 96)
-                      ->stream($nombreArchivo);
-
-        } catch (\Exception $e) {
-            return dd("Error al generar constancia: " . $e->getMessage());
-        }
+    } catch (\Exception $e) {
+        return dd("Error: " . $e->getMessage());
     }
+}
 
     private function getMesNombre($mesNum) {
         $meses = ['01'=>'Enero','02'=>'Febrero','03'=>'Marzo','04'=>'Abril','05'=>'Mayo','06'=>'Junio','07'=>'Julio','08'=>'Agosto','09'=>'Septiembre','10'=>'Octubre','11'=>'Noviembre','12'=>'Diciembre'];
@@ -175,6 +161,7 @@ class ConstanciaController extends Controller
 
 public function reporteAdmin()
 {
+    
     // Consultamos la tabla local
     $reporte = DB::table('constancias_generadas')
         ->orderBy('fecha_generacion', 'desc')

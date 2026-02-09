@@ -15,6 +15,7 @@ return new class extends Migration
         $table->string('codper', 10)->primary(); // Cédula/Código
         $table->string('nomper', 60);
         $table->string('apeper', 60);
+        $table->string('codemp');
         $table->date('fecingper');
         $table->string('coreleper', 100)->nullable(); // Correo
         $table->timestamps();

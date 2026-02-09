@@ -15,10 +15,10 @@ class AdminUserSeeder extends Seeder
     public function run(): void
     {
         $admin = User::create([
-            'cedula' => '18788503', // Coloca la cédula del administrador aquí
-            'name' => 'Luis Daniel',
-            'apellido' => 'Martinez Gonzalez', // Coloca el apellido del administrador aquí
-            'email' => 'Fona@fona.gob.ve', // Coloca el correo electrónico del administrador aquí
+            'cedula' => '0000000', // Coloca la cédula del administrador aquí
+            'name' => 'Administrador',
+            'apellido' => 'Sigh', // Coloca el apellido del administrador aquí
+            'email' => 'sigh@fona.gob.ve', // Coloca el correo electrónico del administrador aquí
             'password' => Hash::make('Fona2025*'), // Coloca la contraseña del administrador aquí
             'estatus_id' => 5,
             'rol_id' => 1,

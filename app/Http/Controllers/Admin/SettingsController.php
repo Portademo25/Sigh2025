@@ -58,10 +58,38 @@ class SettingsController extends Controller
 
 public function syncSigesp(Request $request)
 {
-    set_time_limit(0);
-    ini_set('memory_limit', '1024M');
+    // 1. CONFIGURACIÓN DINÁMICA DE CONEXIÓN
+    // Obtenemos los valores desde la tabla settings
+    $config = DB::table('settings')->pluck('value', 'key');
+
+    // Validamos que existan los datos mínimos para conectar
+    if (!isset($config['db_sigesp_host'], $config['db_sigesp_name'], $config['db_sigesp_user'])) {
+        return redirect()->back()->with('error', 'Faltan parámetros de configuración de SIGESP.');
+    }
 
     try {
+        // Configuramos la conexión 'sigesp' al vuelo antes de usarla
+        config(['database.connections.sigesp' => [
+            'driver'   => 'pgsql',
+            'host'     => $config['db_sigesp_host'],
+            'port'     => $config['db_sigesp_port'] ?? '5432',
+            'database' => $config['db_sigesp_name'],
+            'username' => $config['db_sigesp_user'],
+            // Desencriptamos la contraseña guardada
+            'password' => isset($config['db_sigesp_pass']) ? decrypt($config['db_sigesp_pass']) : '',
+            'charset'  => 'utf8',
+            'prefix'   => '',
+            'schema'   => 'public',
+            'sslmode'  => 'prefer',
+        ]]);
+
+        // Limpiar cualquier conexión previa para asegurar que use la nueva configuración
+        DB::purge('sigesp');
+
+        // --- INICIO DE LÓGICA DE SINCRONIZACIÓN ---
+        set_time_limit(0);
+        ini_set('memory_limit', '1024M');
+
         $reporte = [];
 
         // 1. EMPRESAS
@@ -134,8 +162,8 @@ public function syncSigesp(Request $request)
         return redirect()->back()->with('success', "¡Sincronización Completa! " . implode(' | ', $reporte));
 
     } catch (\Exception $e) {
-        Log::error("Error final: " . $e->getMessage());
-        return redirect()->back()->with('error', 'Error en: ' . $e->getMessage());
+        Log::error("Error en sincronización SIGESP: " . $e->getMessage());
+        return redirect()->back()->with('error', 'Error en la conexión o proceso: ' . $e->getMessage());
     }
 }
     public function sigesp()
@@ -333,72 +361,88 @@ public function generalIndex()
 
 public function updateGeneral(Request $request)
 {
-    // 1. Agregamos 'monto_cestaticket' a la lista de campos de texto/numéricos
-    $textFields = [
-        'institucion_nombre', 'institucion_rif', 'institucion_siglas', 'institucion_direccion',
-        'db_local_host', 'db_local_name', 'db_local_user',
-        'db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user',
-        'monto_cestaticket' // <-- Nuevo campo integrado
+    // 1. Validación estricta (Coincide con las reglas de tu JS)
+    $rules = [
+        'institucion_nombre'    => 'required|string|max:255',
+        'institucion_rif'       => ['required', 'string', 'regex:/^[VGJ]-[0-9]{8}-[0-9]$/i'],
+        'institucion_siglas'    => 'required|string|max:50',
+        'institucion_direccion' => 'nullable|string|max:1000',
+        'monto_cestaticket'     => 'required|numeric|min:0',
+        
+        // Validaciones para bases de datos
+        'db_local_host'         => 'required|string',
+        'db_local_name'         => 'required|string',
+        'db_local_user'         => 'required|string',
+        'db_sigesp_host'        => 'required|string',
+        'db_sigesp_port'        => 'required|numeric',
+        'db_sigesp_name'        => 'required|string',
+        'db_sigesp_user'        => 'required|string',
+        
+        // Logo
+        'logo_archivo'          => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
     ];
 
-    foreach ($textFields as $field) {
-        if ($request->has($field)) {
+    $request->validate($rules);
+
+    try {
+        DB::beginTransaction();
+
+        // 2. Lista de campos de texto simple
+        $fields = [
+            'institucion_nombre', 'institucion_rif', 'institucion_siglas', 
+            'institucion_direccion', 'monto_cestaticket',
+            'db_local_host', 'db_local_name', 'db_local_user',
+            'db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user'
+        ];
+
+        foreach ($fields as $field) {
             DB::table('settings')->updateOrInsert(
                 ['key' => $field],
                 ['value' => $request->get($field), 'updated_at' => now()]
             );
         }
-    }
 
-    // 2. Manejo de contraseñas y archivos (Se mantiene igual que tu código)
-    if ($request->filled('db_local_pass')) {
-        DB::table('settings')->updateOrInsert(
-            ['key' => 'db_local_pass'],
-            ['value' => encrypt($request->db_local_pass), 'updated_at' => now()]
-        );
-    }
+        // 3. Manejo de contraseñas (Solo si el usuario escribió algo)
+        // Usamos encrypt() para que no viajen en texto plano en la BD
+        if ($request->filled('db_local_pass')) {
+            DB::table('settings')->updateOrInsert(
+                ['key' => 'db_local_pass'],
+                ['value' => encrypt($request->db_local_pass), 'updated_at' => now()]
+            );
+        }
 
-    if ($request->filled('db_sigesp_pass')) {
-        DB::table('settings')->updateOrInsert(
-            ['key' => 'db_sigesp_pass'],
-            ['value' => encrypt($request->db_sigesp_pass), 'updated_at' => now()]
-        );
-    }
+        if ($request->filled('db_sigesp_pass')) {
+            DB::table('settings')->updateOrInsert(
+                ['key' => 'db_sigesp_pass'],
+                ['value' => encrypt($request->db_sigesp_pass), 'updated_at' => now()]
+            );
+        }
 
-    if ($request->hasFile('logo_archivo')) {
-        $path = $request->file('logo_archivo')->store('branding', 'public');
-        DB::table('settings')->updateOrInsert(
-            ['key' => 'logo_path'],
-            ['value' => $path, 'updated_at' => now()]
-        );
-    }
+        // 4. Manejo Inteligente de Logo
+        if ($request->hasFile('logo_archivo')) {
+            // Obtener el path del logo anterior para borrarlo
+            $oldPath = DB::table('settings')->where('key', 'logo_path')->value('value');
+            
+            if ($oldPath && Storage::disk('public')->exists($oldPath)) {
+                Storage::disk('public')->delete($oldPath);
+            }
 
-    return back()->with('success', 'Configuración institucional y de Cestaticket actualizada.');
-}
+            // Guardar nuevo logo en storage/app/public/branding
+            $newPath = $request->file('logo_archivo')->store('branding', 'public');
+            
+            DB::table('settings')->updateOrInsert(
+                ['key' => 'logo_path'],
+                ['value' => $newPath, 'updated_at' => now()]
+            );
+        }
 
-    public function testLocalConnection(Request $request)
-    {
+        DB::commit();
+        return back()->with('success', 'Configuración institucional actualizada con éxito.');
 
-        try {
-
-            config(['database.connections.temp_local' => [
-
-                'driver'   => 'pgsql', // Asegúrate que sea pgsql
-                'host'     => $request->db_local_host,
-                'port'     => $request->db_local_port ?? '5432',
-                'database' => $request->db_local_name,
-                'username' => $request->db_local_user,
-                'password' => $request->db_local_pass,
-                'charset'  => 'utf8',
-                'connect_timeout' => 5, // Falla rápido si no hay red
-                'sslmode'  => 'prefer',
-        ]]);
-
-        DB::connection('temp_local')->getPdo();
-
-        return response()->json(['success' => true, 'message' => '¡Conexión Local Exitosa!']);
     } catch (\Exception $e) {
-        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        DB::rollBack();
+        Log::error("Error al actualizar configuración general: " . $e->getMessage());
+        return back()->withErrors('Error crítico: ' . $e->getMessage());
     }
 }
 
@@ -406,15 +450,22 @@ public function updateGeneral(Request $request)
 public function testSigespConnection(Request $request)
 {
     try {
+        // Mismo proceso: si no escribe contraseña nueva, usamos la cifrada de la BD
+        $password = $request->db_sigesp_pass;
+        if (empty($password)) {
+            $encrypted = DB::table('settings')->where('key', 'db_sigesp_pass')->value('value');
+            $password = $encrypted ? decrypt($encrypted) : '';
+        }
+
         config(['database.connections.temp_sigesp' => [
-            'driver'   => 'pgsql', // Cambia a 'oracle' si tu SIGESP usa Oracle
+            'driver'   => 'pgsql', 
             'host'     => $request->db_sigesp_host,
             'port'     => $request->db_sigesp_port ?? '5432',
             'database' => $request->db_sigesp_name,
             'username' => $request->db_sigesp_user,
-            'password' => $request->db_sigesp_pass,
+            'password' => $password,
             'charset'  => 'utf8',
-            'connect_timeout' => 5, // Importante para evitar esperas eternas
+            'connect_timeout' => 5,
             'sslmode'  => 'prefer',
         ]]);
 
@@ -422,7 +473,7 @@ public function testSigespConnection(Request $request)
 
         return response()->json(['success' => true, 'message' => '¡Conexión SIGESP Exitosa!']);
     } catch (\Exception $e) {
-        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        return response()->json(['success' => false, 'message' => 'Error SIGESP: ' . $e->getMessage()]);
     }
 }
 
@@ -476,5 +527,45 @@ public function updateCestaTicket(Request $request)
     );
 
     return back()->with('success', 'Monto de Cestaticket actualizado correctamente.');
+}
+
+public function testLocalConnection(Request $request)
+{
+    try {
+        // Si el usuario no escribió una contraseña nueva en el input, 
+        // buscamos la que ya tenemos cifrada en la base de datos.
+        $password = $request->db_local_pass;
+        if (empty($password)) {
+            $encrypted = DB::table('settings')->where('key', 'db_local_pass')->value('value');
+            $password = $encrypted ? decrypt($encrypted) : '';
+        }
+
+        // Configuramos una conexión temporal al vuelo
+        config(['database.connections.temp_local' => [
+            'driver'   => 'pgsql',
+            'host'     => $request->db_local_host,
+            'port'     => $request->db_local_port ?? '5432',
+            'database' => $request->db_local_name,
+            'username' => $request->db_local_user,
+            'password' => $password,
+            'charset'  => 'utf8',
+            'connect_timeout' => 5, // No esperar más de 5 segundos
+            'sslmode'  => 'prefer',
+        ]]);
+
+        // Intentamos obtener la instancia de PDO (el apretón de manos real)
+        DB::connection('temp_local')->getPdo();
+
+        return response()->json([
+            'success' => true, 
+            'message' => '¡Conexión Local Establecida con Éxito!'
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false, 
+            'message' => 'Error de conexión local: ' . $e->getMessage()
+        ]);
+    }
 }
 }
