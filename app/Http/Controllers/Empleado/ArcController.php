@@ -66,15 +66,15 @@ $detalles = DB::connection('sigesp')
     })
     ->select(
         DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
-        
+
         // ASIGNACIONES: Suma conceptos 001, 002 y 006 (Sueldo y Primas)
         // Ignora cualquier registro individual mayor a 5000 para limpiar el error de Enero
-        DB::raw("SUM(CASE 
-            WHEN hs.tipsal IN ('A', 'A ') 
-            AND hs.valsal < 5000 
-            AND hs.codconc IN ('0000000001', '0000000002', '0000000006') 
+        DB::raw("SUM(CASE
+            WHEN hs.tipsal IN ('A', 'A ')
+            AND hs.valsal < 5000
+            AND hs.codconc IN ('0000000001', '0000000002', '0000000006')
             THEN ABS(hs.valsal) ELSE 0 END) as asignacion"),
-        
+
         // RETENCIONES: Solo tipo P1 como solicitaste
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
         DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
@@ -148,6 +148,105 @@ $detalles = DB::connection('sigesp')
 
         return view('admin.reportes.index_arc', compact('personal', 'anios'));
     }
+
+    public function generarArcAdmin($cedper, $ano)
+{
+    if (ob_get_contents()) ob_end_clean();
+
+    try {
+        // 1. Datos de la Empresa (Igual al anterior)
+        $datosEmpresa = DB::connection('sigesp')->table('sigesp_empresa')->first();
+
+        $agente = [
+            'nombre'    => $datosEmpresa->nomrep ?? 'S/N',
+            'cedula'    => number_format($datosEmpresa->cedrep ?? 0, 0, '', '.'),
+            'ente'      => $datosEmpresa->nombre ?? 'S/N',
+            'rif'       => $datosEmpresa->rifemp ?? 'S/N',
+            'direccion' => $datosEmpresa->direccion ?? 'S/N',
+            'telefono'  => $datosEmpresa->telemp ?? 'S/N',
+            'ciudad'    => $datosEmpresa->ciuemp ?? 'S/N',
+            'estado'    => $datosEmpresa->estemp ?? 'S/N',
+            'cargo'     => $datosEmpresa->carrep ?? 'DIRECTOR EJECUTIVO'
+        ];
+
+        // 2. BUSQUEDA DEL TRABAJADOR (Cambio clave: buscamos por la cédula recibida)
+        // Normalizamos el codper si es necesario
+        $personal = DB::connection('sigesp')->table('sno_personal')
+            ->select('nomper', 'apeper', 'cedper', 'codper')
+            ->where('cedper', $cedper) // Buscamos por la cédula que viene de la URL
+            ->where('estper', '1')     // Solo activos
+            ->first();
+
+        if (!$personal) {
+            return redirect()->back()->with('error', "No se encontró ficha ACTIVA para la cédula: $cedper");
+        }
+
+        $v_codper = str_pad(trim($personal->codper), 10, "0", STR_PAD_LEFT);
+
+        // 3. Consulta de Remuneraciones (Usamos el $v_codper encontrado)
+        $nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0009', '0010', '0011', '0012', '0013', '0014', '0051', '0052', '0053', '0054', '0055', '0056'];
+
+        $detalles = DB::connection('sigesp')
+            ->table('sno_hsalida as hs')
+            ->join('sno_hperiodo as hp', function($join) {
+                $join->on('hs.codnom', '=', 'hp.codnom')
+                     ->on('hs.codperi', '=', 'hp.codperi');
+            })
+            ->select(
+                DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
+                DB::raw("SUM(CASE
+                    WHEN hs.tipsal IN ('A', 'A ')
+                    AND hs.valsal < 5000
+                    AND hs.codconc IN ('0000000001', '0000000002', '0000000006')
+                    THEN ABS(hs.valsal) ELSE 0 END) as asignacion"),
+                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
+                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
+                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000500' THEN ABS(hs.valsal) ELSE 0 END) as monto_sso"),
+                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie"),
+                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000002' THEN ABS(hs.valsal) ELSE 0 END) as monto_inces"),
+                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000503' THEN ABS(hs.valsal) ELSE 0 END) as monto_pension")
+            )
+            ->where('hs.codper', $v_codper)
+            ->whereIn('hs.codnom', $nominasARC)
+            ->whereYear('hp.fecdesper', $ano)
+            ->groupBy('mes')
+            ->orderBy('mes')
+            ->get();
+
+        // 4. Token y QR (Se mantiene la validación)
+        $token = Str::random(32);
+        $qrCode = base64_encode(QrCode::format('svg')->size(80)->margin(0)->generate(route('arc.verificar', $token)));
+
+        // 5. Logos y Preparación de Data (Igual al anterior)
+        $pathRepublica = public_path('images/logo_ministerio.png');
+        $pathEnte = public_path('images/logo_fona.png');
+        $logoRepublica = file_exists($pathRepublica) ? base64_encode(file_get_contents($pathRepublica)) : "";
+        $logoEnte = file_exists($pathEnte) ? base64_encode(file_get_contents($pathEnte)) : "";
+
+        $meses = [1 => 'ENERO', 2 => 'FEBRERO', 3 => 'MARZO', 4 => 'ABRIL', 5 => 'MAYO', 6 => 'JUNIO', 7 => 'JULIO', 8 => 'AGOSTO', 9 => 'SEPTIEMBRE', 10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE'];
+
+        $data = [
+            'agente'        => $agente,
+            'personal'      => $personal,
+            'ano'           => $ano,
+            'detalles'      => $detalles,
+            'meses'         => $meses,
+            'qrCode'        => $qrCode,
+            'logoRepublica' => $logoRepublica,
+            'logoEnte'      => $logoEnte,
+            'fecha'         => date('d/m/Y')
+        ];
+
+        // Usamos la misma vista que ya tienes para que el formato sea idéntico
+        return Pdf::loadView('empleado.reportes.arc_pdf', $data)
+            ->setPaper('letter', 'portrait')
+            ->stream("ARC_{$cedper}_{$ano}.pdf");
+
+    } catch (\Exception $e) {
+        return back()->with('error', "Error al generar ARC: " . $e->getMessage());
+    }
+}
+
 }
 
 

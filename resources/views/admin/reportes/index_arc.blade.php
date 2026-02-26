@@ -9,7 +9,7 @@
             <i class="bi bi-file-earmark-bar-graph me-2"></i> Control de Planillas ARC
         </h5>
 
-        <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-outline-light">
+        <a href="{{ route('admin.reportes.menu') }}" class="btn btn-sm btn-outline-light">
             <i class="bi bi-arrow-left-circle me-1"></i> Regresar al Menú
         </a>
     </div>

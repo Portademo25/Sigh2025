@@ -43,6 +43,9 @@ class HomeController extends Controller
             return redirect()->route('empleado.dashboard');
         }
 
+        if ($user->hasRole('analista_rrhh')) {
+            return redirect()->route('rrhh.dashboard');
+        }
         // Si por alguna razón no tiene rol, enviarlo a una vista genérica o cerrar sesión
         return view('home');
     }

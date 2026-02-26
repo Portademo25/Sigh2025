@@ -15,6 +15,9 @@ use App\Http\Controllers\Empleado\IvssController;
 use App\Http\Controllers\Empleado\PerfilController;
 use App\Http\Controllers\Admin\AdminReporteController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\RRHH\DashboardrrhhController;
+use App\Http\Controllers\RRHH\PersonalController;
+use App\Http\Controllers\RRHH\CestaticketController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -73,6 +76,7 @@ Auth::routes();
         Route::post('/settings/test-local', [SettingsController::class, 'testLocalConnection'])->name('admin.settings.test_local');
         Route::get('/settings/fetch-users', [App\Http\Controllers\Admin\SettingsController::class, 'fetchUsers'])->name('admin.settings.fetch_users');
         Route::put('/admin/settings/users/{user}/update-email', [SettingsController::class, 'updateEmail'])->name('admin.users.update_email');
+        Route::get('/admin/reportes/arc/generar/{cedper}/{ano}', [ArcController::class, 'generarArcAdmin'])->name('admin.arc.generar');
     });
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {
@@ -81,15 +85,33 @@ Auth::routes();
         Route::get('/reportes', [EmpleadoController::class, 'menuReportes'])->name('empleado.reportes.menu');
         Route::get('/mis-recibos', [EmpleadoController::class, 'misRecibos'])->name('empleado.reportes.recibos');
         Route::get('/descargar-recibo/{codnom}/{codperi}', [EmpleadoController::class, 'descargarPDF'])->name('empleado.reportes.recibo_pdf');
-        Route::get('/empleado/constancia', [ConstanciaController::class, 'pdfConstancia'])->name('empleado.reportes.constancia_pdf');});
+        Route::get('/empleado/constancia', [ConstanciaController::class, 'pdfConstancia'])->name('empleado.reportes.constancia_pdf');
         Route::get('/empleado/reporte/arc/{ano}', [ArcController::class, 'generarArc'])->name('arc.pdf')->middleware('auth');
         Route::get('/empleado/reporte/arc', [ArcController::class, 'indexArc'])->name('empleado.reportes.arc_index')->middleware('auth');
-       Route::get('/reportes/ivss', [IvssController::class, 'index'])
-    ->name('empleado.reportes.ivss_index');
+        Route::get('/reportes/ivss', [IvssController::class, 'index'])->name('empleado.reportes.ivss_index');
+        Route::get('/reportes/ivss/descargar/{ano}', [IvssController::class, 'generar14100'])->name('empleado.reportes.ivss_14100');
+    });
 
-// Ruta para generar el PDF (ya la teníamos, pero asegúrate del nombre)
-Route::get('/reportes/ivss/descargar/{ano}', [IvssController::class, 'generar14100'])
-    ->name('empleado.reportes.ivss_14100');
+    //Rutas para RRHH
+    Route::middleware(['role:analista_rrhh'])->group(function () {
+       Route::get('/rrhh/dashboard', [DashboardrrhhController::class, 'index'])->name('rrhh.dashboard');
+       Route::get('/rrhh/personal', [PersonalController::class, 'index'])->name('rrhh.personal.index');
+       Route::get('/rrhh/cestaticket', [CestaticketController::class, 'index'])->name('rrhh.cestaticket.index');
+       Route::post('/rrhh/cestaticket/update', [CestaticketController::class, 'update'])->name('rrhh.cestaticket.update');
+       Route::get('/rrhh/personal/arc/generar/{cedper}/{ano}', [PersonalController::class, 'generarARC'])->name('rrhh.arc.generar');
+       Route::get('/rrhh/personal/pagos-listado', [PersonalController::class, 'listaPagos'])->name('rrhh.personal.pagos.index'); // Asegúrate que termine en .pagos.index
+       Route::get('/rrhh/personal/pagos/{cedper}', [PersonalController::class, 'gestionarPagos'])->name('rrhh.personal.pagos');
+       Route::post('/rrhh/personal/recibo/descargar', [PersonalController::class, 'descargarRecibo'])->name('rrhh.recibo.descargar');
+       Route::get('/rrhh/personal/constancias', [PersonalController::class, 'listaConstancias'])->name('rrhh.personal.constancias.index');
+       Route::get('/rrhh/personal/constancia/descargar/{cedper}', [PersonalController::class, 'descargarConstancia'])->name('rrhh.personal.constancia');
+       Route::get('/rrhh/constancias/validar', [PersonalController::class, 'indexValidacion'])->name('rrhh.constancias.validar');
+    });
+
+
+
+
+
+
 
     // Ruta común para ambos roles
     Route::get('/dashboard', [HomeController::class, 'dashboard'])->name('dashboard');

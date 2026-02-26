@@ -55,6 +55,8 @@ class LoginController extends Controller
             return redirect()->route('admin.dashboard');
         } elseif ($user->hasRole('empleado')) {
             return redirect()->route('empleado.dashboard');
+        } elseif ($user->hasRole('analista_rrhh')) {
+            return redirect()->route('rrhh.dashboard');
         }
 
         // Redirección por defecto si no tiene rol asignado

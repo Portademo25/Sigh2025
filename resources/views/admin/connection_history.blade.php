@@ -7,8 +7,8 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h2 class="mb-0">📜 Historial de Conexiones</h2>
-                    <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary btn-sm">
-                        ← Dashboard
+                    <a href="{{ route('admin.users.index') }}" class="btn btn-secondary btn-sm">
+                        ← Tablero de Administración
                     </a>
                 </div>
 
@@ -42,8 +42,8 @@
     <td><code>{{ $connection->ipconexion }}</code></td>
     <td>
         {{-- Combinamos fecha y hora --}}
-        {{ \Carbon\Carbon::parse($connection->fechaconexion)->format('d/m/Y') }} 
-        <span class="text-muted">|</span> 
+        {{ \Carbon\Carbon::parse($connection->fechaconexion)->format('d/m/Y') }}
+        <span class="text-muted">|</span>
         {{ $connection->horaconexion }}
     </td>
 </tr>

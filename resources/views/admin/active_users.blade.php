@@ -7,8 +7,8 @@
             <div class="card border-success">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                     <h2 class="mb-0">🟢 Usuarios Activos (En línea)</h2>
-                    <a href="{{ route('admin.dashboard') }}" class="btn btn-light btn-sm">
-                        ← Dashboard
+                    <a href="{{ route('admin.users.index') }}" class="btn btn-light btn-sm">
+                        ← Tablero de Administración
                     </a>
                 </div>
 

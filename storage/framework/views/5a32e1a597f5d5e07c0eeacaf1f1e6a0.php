@@ -2,14 +2,20 @@
 <div class="container mt-4">
     <div class="row mb-4">
         <div class="col-12">
-            <h2 class="text-secondary font-weight-bold">
-                <i class="fas fa-chart-pie mr-2"></i>Centro de Reportes Administrativos
-            </h2>
-            <p class="text-muted">Seleccione el módulo de auditoría o reporte que desea consultar.</p>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="text-secondary font-weight-bold mb-0">
+                        <i class="fas fa-chart-pie mr-2"></i>Centro de Reportes Administrativos
+                    </h2>
+                    <p class="text-muted mb-0">Seleccione el módulo de auditoría o reporte que desea consultar.</p>
+                </div>
+                <a href="<?php echo e(route('admin.dashboard')); ?>" class="btn btn-outline-secondary shadow-sm">
+                    <i class="fas fa-chevron-left mr-1"></i> Volver al Menú
+                </a>
+            </div>
             <hr>
         </div>
     </div>
-
     <div class="row">
         <div class="col-md-4 mb-4">
             <div class="card shadow h-100 border-left-primary hover-shadow" style="transition: all 0.3s ease;">
@@ -39,7 +45,7 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Finanzas</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">Resumen de Nómina</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">Resumen de Arc</div>
                             <p class="text-muted small mt-2">Consulta consolidada de conceptos y aportes patronales desde SIGESP.</p>
                         </div>
                         <div class="col-auto">
@@ -60,8 +66,8 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Seguridad</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800">Accesos al Sistema</div>
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Historico</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">Historial De Documento Generados</div>
                             <p class="text-muted small mt-2">Registro de inicios de sesión y descargas realizadas por el personal.</p>
                         </div>
                         <div class="col-auto">

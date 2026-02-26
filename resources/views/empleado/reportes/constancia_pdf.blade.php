@@ -94,7 +94,7 @@
     <br><br>
     Adicionalmente, percibe el beneficio de Alimentación mensual, por la cantidad de <strong>{{ $ls_monto_alimentacion }}</strong>.
     <br><br>
-    Constancia que se expide a petición de la parte interesada, en Caracas a los <strong>{{ $ls_dia }}</strong> días del mes de <strong>{{ $ls_mes }}</strong>  del {{ $ls_ano }}.
+    Constancia que se expide a petición de la parte interesada, en Caracas a los <strong> {{ $ls_dia }} </strong> días del mes de <strong>{{ $ls_mes }}</strong>  del {{ $ls_ano }}.
 </div>
 
 <div class="seccion-firma">

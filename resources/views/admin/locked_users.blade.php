@@ -7,8 +7,8 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h2 class="mb-0">🔒 Usuarios Bloqueados (Acceso de Administrador)</h2>
-                    <a href="{{ route('admin.dashboard') }}" class="btn btn-secondary btn-sm"  style="">
-                        ← Regresar al Dashboard
+                    <a href="{{ route('admin.users.index') }}" class="btn btn-secondary btn-sm"  style="">
+                        ← Tablero de Administración
                     </a>
                 </div>
 

@@ -17,30 +17,34 @@ class OnboardingController extends Controller
     }
 
     // PASO 1: Verificar el correo ingresado (Prioridad Estper 1)
-   public function checkEmail(Request $request)
+  public function checkEmail(Request $request)
 {
     $request->validate(['email' => 'required|email']);
     $email = strtolower(trim($request->email));
 
-    // 1. PRIMERO: Verificamos si ya existe en nuestra base de datos local
+    // 1. PRIMERO: Verificamos si ya existe en nuestra base de datos local (PostgreSQL)
     $user = User::where('email', $email)->first();
 
     if ($user) {
-        // EXCEPCIÓN PARA EL ADMIN: Si es rol_id 1, entra directo sin mirar SIGESP
-        if ($user->rol_id == 1) {
+        // EXCEPCIÓN DE SEGURIDAD:
+        // Si es Administrador (1) o Analista RRHH (3), saltamos la validación de SIGESP.
+        // Esto garantiza que el personal de gestión siempre pueda acceder.
+        if (in_array($user->rol_id, [1, 3])) {
             return redirect()->route('login')
                              ->withInput(['email' => $email])
                              ->with('user_verified', true);
         }
 
-        // Si existe pero es empleado (rol_id != 1), SÍ validamos que siga activo en SIGESP
+        // Si es un Empleado común, SÍ validamos que su ficha siga ACTIVA en SIGESP
         $personalActivo = DB::connection('sigesp')->table('sno_personal')
             ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
             ->where('estper', '1')
             ->first();
 
         if (!$personalActivo) {
-            return back()->withErrors(['email' => 'Acceso denegado: Su ficha no figura como ACTIVA en SIGESP.']);
+            return back()->withErrors([
+                'email' => 'Acceso denegado: Su ficha no figura como ACTIVA en el sistema de nómina (SIGESP).'
+            ]);
         }
 
         return redirect()->route('login')
@@ -48,7 +52,7 @@ class OnboardingController extends Controller
                          ->with('user_verified', true);
     }
 
-    // 2. Si NO existe en nuestra DB, buscamos en SIGESP para registro nuevo (Solo estper 1)
+    // 2. Si NO existe en nuestra DB, buscamos en SIGESP para permitir un registro nuevo
     $personalNuevo = DB::connection('sigesp')->table('sno_personal')
         ->whereRaw('LOWER(TRIM(coreleper)) = ?', [$email])
         ->where('estper', '1')
@@ -60,7 +64,7 @@ class OnboardingController extends Controller
             'register_codper' => trim($personalNuevo->codper)
         ]);
         return redirect()->route('auth.complete_register')
-                         ->with('success', 'Trabajador identificado. Complete su registro.');
+                         ->with('success', 'Trabajador identificado en SIGESP. Proceda a completar su registro local.');
     }
 
     return back()->withErrors(['email' => 'Este correo no coincide con nuestro archivo de personal activo.']);

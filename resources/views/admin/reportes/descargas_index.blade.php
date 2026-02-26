@@ -8,7 +8,7 @@
                 <h5 class="mb-0">
                     <i class="bi bi-journal-text me-2 text-warning"></i> Historial de Documentos Generados
                 </h5>
-                <a href="{{ route('admin.dashboard') }}" class="btn btn-sm btn-outline-light">
+                <a href="{{ route('admin.reportes.menu') }}" class="btn btn-sm btn-outline-light">
                     <i class="bi bi-arrow-left-circle me-1"></i> Regresar al Menú
                 </a>
             </div>
