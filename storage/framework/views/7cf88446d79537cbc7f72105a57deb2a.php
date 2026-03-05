@@ -44,7 +44,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <p class="text-uppercase fw-bold text-success mb-1" style="letter-spacing: 1px; font-size: 0.8rem;">Egresados</p>
-                            <h2 class="fw-bold mb-0"><?php echo e(number_format($stats->jubilados, 0, ',', '.')); ?></h2>
+                            <h2 class="fw-bold mb-0"><?php echo e(number_format($stats->egresados, 0, ',', '.')); ?></h2>
                         </div>
                         <div class="bg-success bg-opacity-10 p-3 rounded-3">
                             <i class="fas fa-id-card-alt fa-2x text-success"></i>
@@ -61,7 +61,7 @@
                     <div class="d-flex justify-content-between">
                         <div>
                             <p class="text-uppercase fw-bold text-info mb-1" style="letter-spacing: 1px; font-size: 0.8rem;">Total Fichas</p>
-                            <h2 class="fw-bold mb-0"><?php echo e(number_format($stats->total, 0, ',', '.')); ?></h2>
+                            <h2 class="fw-bold mb-0"><?php echo e(number_format($stats->total_en_sistema, 0, ',', '.')); ?></h2>
                         </div>
                         <div class="bg-info bg-opacity-10 p-3 rounded-3">
                             <i class="fas fa-users fa-2x text-info"></i>
@@ -109,12 +109,14 @@
                         <i class="fas fa-utensils text-warning fs-3"></i>
                     </div>
                     <h6 class="fw-bold mb-1">Cestaticket</h6>
-                    <p class="text-muted small">Monto actual: <strong>Bs. 13.000,00</strong></p>
+                    <p class="text-muted small">
+                    Monto actual: <strong>Bs. <?php echo e(number_format($montoCestaticket, 2, ',', '.')); ?></strong>
+                </p>
                     <span class="badge bg-light text-dark border fw-normal text-wrap">Última actualización: <?php echo e(date('d/m/Y')); ?></span>
                 </div>
-                <button class="btn btn-warning w-100 py-3 rounded-3 fw-bold mt-3 shadow-sm">
-                    <i class="fas fa-edit me-1"></i> Actualizar Monto
-                </button>
+                <a href="<?php echo e(route('rrhh.cestaticket.index')); ?>" class="btn btn-warning w-100 py-3 rounded-3 fw-bold mt-3 shadow-sm">
+                <i class="fas fa-edit me-1"></i> Actualizar Monto
+            </a>
             </div>
         </div>
     </div>

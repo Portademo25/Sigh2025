@@ -43,11 +43,14 @@
         <tr>
             <td width="15%"><img src="data:image/png;base64,{{ $logoRepublica }}" style="width: 70px;"></td>
             <td class="header-text">
-                REPÚBLICA BOLIVARIANA DE VENEZUELA<br>
-                {{ $agente['ente'] }}<br>
-                <span style="font-size: 12px;">COMPROBANTE DE RETENCIONES AR-C</span><br>
-                EJERCICIO FISCAL {{ $ano }}
-            </td>
+    REPÚBLICA BOLIVARIANA DE VENEZUELA<br>
+    MINISTERIO DEL PODER POPULAR PARA RELACIONES INTERIORES, JUSTICIA Y PAZ<br>
+    {{ $agente['ente'] }}<br>
+    <span style="font-size: 12px; font-weight: bold; margin-top: 5px; display: block;">
+        COMPROBANTE DE RETENCIONES AR-C
+    </span>
+    <strong>EJERCICIO FISCAL {{ $ano }}</strong>
+</td>
             <td width="15%" style="text-align: right;"><img src="data:image/png;base64,{{ $logoEnte }}" style="width: 70px;"></td>
         </tr>
     </table>

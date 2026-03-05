@@ -43,12 +43,14 @@
         <tr>
             <td width="15%"><img src="data:image/png;base64,<?php echo e($logoRepublica); ?>" style="width: 70px;"></td>
             <td class="header-text">
-                REPÚBLICA BOLIVARIANA DE VENEZUELA<br>
-                <?php echo e($agente['ente']); ?><br>
-                <span style="font-size: 12px;">COMPROBANTE DE RETENCIONES AR-C</span><br>
-                EJERCICIO FISCAL <?php echo e($ano); ?>
-
-            </td>
+    REPÚBLICA BOLIVARIANA DE VENEZUELA<br>
+    MINISTERIO DEL PODER POPULAR PARA RELACIONES INTERIORES, JUSTICIA Y PAZ<br>
+    <?php echo e($agente['ente']); ?><br>
+    <span style="font-size: 12px; font-weight: bold; margin-top: 5px; display: block;">
+        COMPROBANTE DE RETENCIONES AR-C
+    </span>
+    <strong>EJERCICIO FISCAL <?php echo e($ano); ?></strong>
+</td>
             <td width="15%" style="text-align: right;"><img src="data:image/png;base64,<?php echo e($logoEnte); ?>" style="width: 70px;"></td>
         </tr>
     </table>

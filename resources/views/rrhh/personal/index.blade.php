@@ -69,9 +69,12 @@
             </div>
         </div>
 
-        <div class="card-footer bg-white d-flex justify-content-center py-3">
-            {{ $personal->appends(['search' => $search])->links('pagination::bootstrap-5') }}
-        </div>
+       <div class="card-footer bg-white d-flex flex-column align-items-center py-3">
+    {{ $personal->appends(['search' => $search])->links('pagination::bootstrap-5') }}
+    <div class="text-muted mt-2" style="font-size: 0.8rem;">
+        Página {{ $personal->currentPage() }} de {{ $personal->lastPage() }}
+    </div>
+</div>
     </div>
 </div>
 

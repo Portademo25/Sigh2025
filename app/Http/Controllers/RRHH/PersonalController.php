@@ -13,39 +13,49 @@ use Carbon\Carbon;
 
 class PersonalController extends Controller
 {
-    public function index(Request $request)
+   public function index(Request $request)
 {
     $search = $request->input('search');
 
-    // Iniciamos la consulta al SIGESP
-    $query = DB::connection('sigesp')->table('sno_personal')
-        ->select('cedper', 'nomper', 'apeper', 'fecingper', 'estper')
-        ->orderBy('apeper', 'asc');
+    // Usamos GROUP BY para asegurar que cada trabajador aparezca una sola vez
+    $query = DB::connection('sigesp')->table('sno_personal as p')
+        ->join('sno_personalnomina as n', 'p.codper', '=', 'n.codper')
+        ->select(
+            'p.cedper',
+            'p.nomper',
+            'p.apeper',
+            'p.fecingper',
+            'p.estper'
+        )
+        ->where(function($q) {
+            $q->whereRaw("trim(p.estper) = '1'")
+              ->where('n.sueintper', '>', 0)
+              ->where('p.fecegrper', '1900-01-01');
+        })
+        // El secreto está aquí: agrupamos por los campos que seleccionamos
+        ->groupBy('p.cedper', 'p.nomper', 'p.apeper', 'p.fecingper', 'p.estper');
 
-    // Si el analista escribe algo, filtramos
     if ($search) {
         $query->where(function($q) use ($search) {
-            $q->where('cedper', 'LIKE', "%$search%")
-              ->orWhere('nomper', 'LIKE', "%$search%")
-              ->orWhere('apeper', 'LIKE', "%$search%");
+            $q->where('p.cedper', 'LIKE', "%$search%")
+              ->orWhere('p.nomper', 'LIKE', "%$search%")
+              ->orWhere('p.apeper', 'LIKE', "%$search%");
         });
     }
 
-    // Paginamos de 15 en 15 para mantener la fluidez
-    $personal = $query->paginate(15);
+    // Al usar groupBy, Laravel a veces tiene problemas contando para el paginate
+    // Así que usamos este pequeño ajuste para obtener el total correcto
+    $personal = $query->orderBy('p.apeper', 'asc')->paginate(15);
+    $personal->appends(['search' => $search]);
 
     return view('rrhh.personal.index', compact('personal', 'search'));
 }
 
-
-
 public function generarARC($cedper, $ano)
 {
-    // 1. LIMPIEZA INICIAL: Detenemos cualquier salida previa
     if (ob_get_contents()) ob_end_clean();
 
     try {
-        // 1. Datos de la Empresa (Igual al anterior)
         $datosEmpresa = DB::connection('sigesp')->table('sigesp_empresa')->first();
 
         $agente = [
@@ -60,21 +70,22 @@ public function generarARC($cedper, $ano)
             'cargo'     => $datosEmpresa->carrep ?? 'DIRECTOR EJECUTIVO'
         ];
 
-        // 2. BUSQUEDA DEL TRABAJADOR (Cambio clave: buscamos por la cédula recibida)
-        // Normalizamos el codper si es necesario
+        // 2. BUSQUEDA DE PERSONAL ACTIVO
+        // Agregamos trim para evitar errores por espacios en la DB
         $personal = DB::connection('sigesp')->table('sno_personal')
-            ->select('nomper', 'apeper', 'cedper', 'codper')
-            ->where('cedper', $cedper) // Buscamos por la cédula que viene de la URL
-            ->where('estper', '1')     // Solo activos
+            ->select('nomper', 'apeper', 'cedper', 'codper', 'estper')
+            ->where('cedper', $cedper)
+            ->where('estper', '1') // FILTRO: Solo personal con estatus 1 (Activo)
             ->first();
 
+        // Si no es activo o no existe, lanzamos el error
         if (!$personal) {
-            return redirect()->back()->with('error', "No se encontró ficha ACTIVA para la cédula: $cedper");
+            return redirect()->back()->with('error', "El trabajador con cédula $cedper no se encuentra en estatus ACTIVO o no existe en el sistema.");
         }
 
         $v_codper = str_pad(trim($personal->codper), 10, "0", STR_PAD_LEFT);
 
-        // 3. Consulta de Remuneraciones (Usamos el $v_codper encontrado)
+        // 3. Consulta de Remuneraciones
         $nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0009', '0010', '0011', '0012', '0013', '0014', '0051', '0052', '0053', '0054', '0055', '0056'];
 
         $detalles = DB::connection('sigesp')
@@ -83,6 +94,7 @@ public function generarARC($cedper, $ano)
                 $join->on('hs.codnom', '=', 'hp.codnom')
                      ->on('hs.codperi', '=', 'hp.codperi');
             })
+            // Agregamos join a sno_personal para doble validación de estatus en el historial si fuera necesario
             ->select(
                 DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
                 DB::raw("SUM(CASE
@@ -104,11 +116,11 @@ public function generarARC($cedper, $ano)
             ->orderBy('mes')
             ->get();
 
-        // 4. Token y QR (Se mantiene la validación)
+        // 4. Generación de QR y PDF (Se mantiene igual)
         $token = Str::random(32);
-        $qrCode = base64_encode(QrCode::format('svg')->size(80)->margin(0)->generate(route('arc.verificar', $token)));
+        $qrUrl = route('arc.verificar', ['token' => $token, 'cedula' => $cedper]);
+        $qrCode = base64_encode(QrCode::format('svg')->size(80)->margin(0)->generate($qrUrl));
 
-        // 5. Logos y Preparación de Data (Igual al anterior)
         $pathRepublica = public_path('images/logo_ministerio.png');
         $pathEnte = public_path('images/logo_fona.png');
         $logoRepublica = file_exists($pathRepublica) ? base64_encode(file_get_contents($pathRepublica)) : "";
@@ -128,7 +140,6 @@ public function generarARC($cedper, $ano)
             'fecha'         => date('d/m/Y')
         ];
 
-        // Usamos la misma vista que ya tienes para que el formato sea idéntico
         return Pdf::loadView('empleado.reportes.arc_pdf', $data)
             ->setPaper('letter', 'portrait')
             ->stream("ARC_{$cedper}_{$ano}.pdf");
@@ -176,20 +187,41 @@ public function listaPagos(Request $request)
 {
     $buscar = $request->get('buscar');
 
-    $personal = DB::connection('sigesp')->table('sno_personal')
-        ->select('nomper', 'apeper', 'cedper', 'codper')
-        ->where(function($query) use ($buscar) {
-            if ($buscar) {
-                $query->where('cedper', 'like', "%$buscar%")
-                      ->orWhere('nomper', 'like', "%$buscar%")
-                      ->orWhere('apeper', 'like', "%$buscar%");
-            }
-        })
-        ->paginate(15);
+    // 1. Iniciamos la consulta con JOIN
+    $query = DB::connection('sigesp')->table('sno_personal as p')
+        ->join('sno_personalnomina as n', 'p.codper', '=', 'n.codper')
+        ->select(
+            'p.nomper',
+            'p.apeper',
+            'p.cedper',
+            'p.codper'
+        )
+        ->where(function($q) {
+            $q->whereRaw("trim(p.estper) = '1'") // Ficha activa
+              ->where('n.sueintper', '>', 0)      // Sueldo real
+              ->where('p.fecegrper', '1900-01-01'); // Sin fecha de egreso
+        });
 
-    return view('rrhh.personal.lista_pagos', compact('personal'));
+    // 2. Filtro de búsqueda
+    if ($buscar) {
+        $query->where(function($q) use ($buscar) {
+            $q->where('p.cedper', 'like', "%$buscar%")
+              ->orWhere('p.nomper', 'like', "%$buscar%")
+              ->orWhere('p.apeper', 'like', "%$buscar%");
+        });
+    }
+
+    // 3. Arreglo del Paginate: Agrupamos por la clave primaria para que el conteo sea único
+    // Esto elimina los duplicados y ajusta el total de páginas
+    $personal = $query->groupBy('p.codper', 'p.cedper', 'p.nomper', 'p.apeper')
+                      ->orderBy('p.apeper', 'asc')
+                      ->paginate(15);
+
+    // 4. Mantenemos el parámetro de búsqueda en los links
+    $personal->appends(['buscar' => $buscar]);
+
+    return view('rrhh.personal.lista_pagos', compact('personal', 'buscar'));
 }
-
 
 public function descargarRecibo(Request $request)
 {
@@ -268,7 +300,7 @@ public function descargarRecibo(Request $request)
         $pdf->getDomPDF()->add_info('Title', $nombreArchivo);
 
         $pdfContent = $pdf->output();
-        
+
 
         // 7. Envío de Correo (SIGH)
         $cedulaLimpia = (int)$cedper;
@@ -427,23 +459,40 @@ public function listaConstancias(Request $request)
 {
     $buscar = $request->get('buscar');
 
-    $personal = DB::connection('sigesp')->table('sno_personal as p')
-        // El estatus está en la tabla maestra 'p', no en 'pn'
-        ->select('p.cedper', 'p.nomper', 'p.apeper')
-        ->where('p.estper', '1') // <-- Corregido: p.estper en lugar de pn.estper
-        ->when($buscar, function ($query, $buscar) {
-            return $query->where(function($q) use ($buscar) {
-                $q->where('p.cedper', 'like', "%{$buscar}%")
-                  ->orWhere('p.nomper', 'like', "%{$buscar}%")
-                  ->orWhere('p.apeper', 'like', "%{$buscar}%");
-            });
-        })
-        ->orderBy('p.nomper', 'asc')
-        ->paginate(15);
+    // 1. Iniciamos con JOIN a nómina para validar actividad real
+    $query = DB::connection('sigesp')->table('sno_personal as p')
+        ->join('sno_personalnomina as n', 'p.codper', '=', 'n.codper')
+        ->select(
+            'p.cedper',
+            'p.nomper',
+            'p.apeper'
+        )
+        ->where(function($q) {
+            $q->whereRaw("trim(p.estper) = '1'") // Ficha activa
+              ->where('n.sueintper', '>', 0)      // Sueldo real
+              ->where('p.fecegrper', '1900-01-01'); // Sin fecha de egreso
+        });
 
-    return view('rrhh.personal.constancias', compact('personal'));
+    // 2. Filtro de búsqueda (si existe)
+    if ($buscar) {
+        $query->where(function($q) use ($buscar) {
+            $q->where('p.cedper', 'like', "%{$buscar}%")
+              ->orWhere('p.nomper', 'like', "%{$buscar}%")
+              ->orWhere('p.apeper', 'like', "%{$buscar}%");
+        });
+    }
+
+    // 3. Arreglo de Paginate y Duplicados
+    // Agrupamos para que el contador de Laravel sea sobre personas únicas
+    $personal = $query->groupBy('p.cedper', 'p.nomper', 'p.apeper')
+                      ->orderBy('p.nomper', 'asc')
+                      ->paginate(15);
+
+    // 4. Persistencia de búsqueda en los links
+    $personal->appends(['buscar' => $buscar]);
+
+    return view('rrhh.personal.constancias', compact('personal', 'buscar'));
 }
-
 
 
 public function indexValidacion(Request $request)

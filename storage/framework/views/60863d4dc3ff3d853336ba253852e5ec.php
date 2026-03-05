@@ -68,10 +68,14 @@
             </div>
         </div>
 
-        <div class="card-footer bg-white d-flex justify-content-center py-3">
-            <?php echo e($personal->appends(['search' => $search])->links('pagination::bootstrap-5')); ?>
+       <div class="card-footer bg-white d-flex flex-column align-items-center py-3">
+    <?php echo e($personal->appends(['search' => $search])->links('pagination::bootstrap-5')); ?>
 
-        </div>
+    <div class="text-muted mt-2" style="font-size: 0.8rem;">
+        Página <?php echo e($personal->currentPage()); ?> de <?php echo e($personal->lastPage()); ?>
+
+    </div>
+</div>
     </div>
 </div>
 
