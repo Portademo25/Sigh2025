@@ -3,44 +3,62 @@
 @section('content')
 <div class="container-fluid py-4">
     <div class="row mb-4">
-        <div class="col-12">
-            <h2 class="fw-bold"><i class="bi bi-shield-check text-primary me-2"></i>Centro de Seguridad</h2>
-            <p class="text-muted">Gestione la integridad del portal, el acceso de los empleados y la auditoría de procesos.</p>
+    <div class="col-12">
+        {{-- Navegación Breadcrumb --}}
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item">
+                    <a href="{{ route('admin.settings.index') }}" class="text-decoration-none">
+                        <i class="bi bi-house-door me-1"></i>Configuración del Sistema
+                    </a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">Centro de Seguridad</li>
+            </ol>
+        </nav>
+
+        {{-- Título y Descripción --}}
+        <div class="d-flex align-items-center">
+            <h2 class="fw-bold mb-0">
+                <i class="bi bi-shield-check text-primary me-2"></i>Centro de Seguridad
+            </h2>
         </div>
+        <p class="text-muted mt-2">Gestione la integridad del portal, el acceso de los empleados y la auditoría de procesos.</p>
     </div>
+</div>
 
     <div class="row g-4">
+        {{-- Columna Izquierda: Disponibilidad y Políticas --}}
         <div class="col-lg-4">
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white py-3 fw-bold">
                     <i class="bi bi-broadcast me-2"></i>Disponibilidad del Sistema
                 </div>
                 <div class="card-body">
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <div>
-            <h6 class="mb-0 fw-bold">Modo Mantenimiento</h6>
-            <small class="text-muted">Desactiva el acceso al portal para usuarios no administrativos.</small>
-        </div>
-        <div class="form-check form-switch">
-            <form action="{{ route('admin.security.toggle-maintenance') }}" method="POST">
-                @csrf
-                <button type="submit" class="btn {{ ($config['site_offline'] ?? '0') == '1' ? 'btn-danger' : 'btn-outline-secondary' }} btn-sm">
-                    @if(($config['site_offline'] ?? '0') == '1')
-                        <i class="bi bi-pause-btn-fill me-1"></i> Desactivar Mantenimiento
-                    @else
-                        <i class="bi bi-play-btn-fill me-1"></i> Activar Mantenimiento
-                    @endif
-                </button>
-            </form>
-        </div>
-    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <div>
+                            <h6 class="mb-0 fw-bold">Modo Mantenimiento</h6>
+                            <small class="text-muted">Desactiva el acceso al portal para usuarios no administrativos.</small>
+                        </div>
+                        <div class="form-check form-switch">
+                            <form action="{{ route('admin.security.toggle-maintenance') }}" method="POST">
+                                @csrf
+                                <button type="submit" class="btn {{ ($config['site_offline'] ?? '0') == '1' ? 'btn-danger' : 'btn-outline-secondary' }} btn-sm">
+                                    @if(($config['site_offline'] ?? '0') == '1')
+                                        <i class="bi bi-pause-btn-fill me-1"></i> Desactivar Mantenimiento
+                                    @else
+                                        <i class="bi bi-play-btn-fill me-1"></i> Activar Mantenimiento
+                                    @endif
+                                </button>
+                            </form>
+                        </div>
+                    </div>
 
-    @if(($config['site_offline'] ?? '0') == '1')
-        <div class="alert alert-warning py-2 small mb-0">
-            <i class="bi bi-exclamation-triangle me-1"></i> El sistema se encuentra actualmente fuera de línea para los usuarios.
-        </div>
-    @endif
-</div>
+                    @if(($config['site_offline'] ?? '0') == '1')
+                        <div class="alert alert-warning py-2 small mb-0">
+                            <i class="bi bi-exclamation-triangle me-1"></i> El sistema se encuentra actualmente fuera de línea para los usuarios.
+                        </div>
+                    @endif
+                </div>
             </div>
 
             <div class="card shadow-sm border-0">
@@ -65,25 +83,27 @@
                             Cifrado de datos (SSL)
                              @if(request()->isSecure())
                                 <span class="text-success"><i class="bi bi-shield-fill-check"></i> Activo</span>
-                                     @else
-                                         <span class="text-warning"><i class="bi bi-shield-slash"></i> No seguro</span>
-                                    @endif
+                             @else
+                                <span class="text-warning"><i class="bi bi-shield-slash"></i> No seguro</span>
+                             @endif
                         </li>
                     </ul>
-
-                        <a href="{{ route('admin.security.policies') }}" class="btn btn-light btn-sm w-100 mt-3 border">
-                            Editar Políticas
-                        </a>
-
+                    <a href="{{ route('admin.security.policies') }}" class="btn btn-light btn-sm w-100 mt-3 border">
+                        Editar Políticas
+                    </a>
                 </div>
             </div>
         </div>
 
+        {{-- Columna Derecha: Tabla Dinámica de Logs --}}
         <div class="col-lg-8">
             <div class="card shadow-sm border-0 h-100">
                 <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
                     <span class="fw-bold"><i class="bi bi-journal-text me-2"></i>Eventos Críticos de Seguridad</span>
-                    <button class="btn btn-sm btn-outline-secondary">Descargar Log Completo</button>
+                    {{-- Puedes enlazar esto a una ruta de exportación más adelante --}}
+                    <a href="{{ route('admin.security.download') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-download me-1"></i> Descargar Log Completo
+</a>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -98,89 +118,107 @@
                                 </tr>
                             </thead>
                             <tbody class="small">
-                                <tr>
-                                    <td class="ps-3">
-                                        <i class="bi bi-exclamation-triangle text-warning me-2"></i>
-                                        Intento de login fallido
-                                    </td>
-                                    <td>25.523.307</td>
-                                    <td>192.168.1.45</td>
-                                    <td>Hoy, 10:15 AM</td>
-                                    <td class="text-end pe-3"><span class="badge bg-warning text-dark">Media</span></td>
-                                </tr>
-                                <tr>
-                                    <td class="ps-3">
-                                        <i class="bi bi-trash text-danger me-2"></i>
-                                        Eliminación de registros
-                                    </td>
-                                    <td>Admin_Luis</td>
-                                    <td>201.243.10.5</td>
-                                    <td>Ayer, 04:30 PM</td>
-                                    <td class="text-end pe-3"><span class="badge bg-danger">Alta</span></td>
-                                </tr>
-                                <tr>
-                                    <td class="ps-3">
-                                        <i class="bi bi-key text-info me-2"></i>
-                                        Cambio de contraseña
-                                    </td>
-                                    <td>10.455.122</td>
-                                    <td>186.24.55.12</td>
-                                    <td>12 Ene 2026</td>
-                                    <td class="text-end pe-3"><span class="badge bg-info text-dark">Baja</span></td>
-                                </tr>
+                                @forelse($eventos as $log)
+                                    <tr>
+                                        <td class="ps-3">
+                                            @if($log->severity == 'Alta' || $log->severity == 'Crítica')
+                                                <i class="bi bi-exclamation-octagon text-danger me-2"></i>
+                                            @elseif($log->severity == 'Media')
+                                                <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                                            @else
+                                                <i class="bi bi-info-circle text-info me-2"></i>
+                                            @endif
+                                            {{ $log->event }}
+                                        </td>
+                                        <td>{{ $log->user_identifier ?? 'Invitado' }}</td>
+                                        <td><code>{{ $log->ip_address }}</code></td>
+                                        <td>
+                                            {{ $log->created_at->format('d/m/Y h:i A') }}
+                                            <br><small class="text-muted">({{ $log->created_at->diffForHumans() }})</small>
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <span class="badge bg-{{ $log->getSeverityColor() }}">
+                                                {{ $log->severity }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-muted">
+                                            <i class="bi bi-check-circle me-1"></i> No hay eventos registrados.
+                                        </td>
+                                    </tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>
                 </div>
                 <div class="card-footer bg-white text-center py-3">
-                    <p class="small text-muted mb-0">Mostrando los últimos 15 eventos de seguridad registrados localmente.</p>
+                    <p class="small text-muted mb-0">Mostrando los últimos {{ $eventos->count() }} eventos de seguridad registrados localmente.</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row mt-4">
-        <div class="col-md-12">
-            <div class="card shadow-sm border-0 bg-dark text-white">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-1"><i class="bi bi-terminal me-2"></i>Mantenimiento de Base de Datos</h5>
-                        <p class="small mb-0 opacity-75">Optimice las tablas locales y purgue archivos temporales para mejorar el rendimiento.</p>
-                    </div>
-                    <div class="btn-group">
-                        <button class="btn btn-outline-light btn-sm">Optimizar Tablas</button>
-                        <button class="btn btn-outline-light btn-sm">Limpiar Caché</button>
-                    </div>
+    {{-- Footer: Mantenimiento de BD --}}
+   <div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card shadow-sm border-0 bg-dark text-white">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1"><i class="bi bi-terminal me-2"></i>Mantenimiento de Base de Datos</h5>
+                    <p class="small mb-0 opacity-75">Optimice las tablas locales y purgue archivos temporales para mejorar el rendimiento.</p>
+                </div>
+                <div class="btn-group">
+                    <form action="{{ route('admin.security.optimize') }}" method="POST" class="d-inline form-mantenimiento">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-light btn-sm rounded-start btn-mantenimiento">
+                            <i class="bi bi-gear-fill me-1"></i> Optimizar Tablas
+                        </button>
+                    </form>
+
+                    <form action="{{ route('admin.security.cache') }}" method="POST" class="d-inline form-mantenimiento">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-light btn-sm rounded-end btn-mantenimiento">
+                            <i class="bi bi-trash3-fill me-1"></i> Limpiar Caché
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
+  </div>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    document.querySelectorAll('.form-mantenimiento').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const btn = this.querySelector('.btn-mantenimiento');
+            const textoOriginal = btn.innerHTML;
 
-<div class="modal fade" id="modalMantenimiento" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="{{ route('admin.security.action') }}" method="POST">
-                @csrf
-                <input type="hidden" name="action" value="toggle_maintenance">
-                <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">Confirmar Cierre del Portal</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>¿Está seguro de activar el <strong>Modo Mantenimiento</strong>?</p>
-                    <ul class="small">
-                        <li>Los empleados no podrán iniciar sesión.</li>
-                        <li>Las descargas de constancias y recibos quedarán inhabilitadas.</li>
-                        <li>Usted podrá seguir trabajando si usa el enlace secreto.</li>
-                    </ul>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-danger">Sí, activar mantenimiento</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+            Swal.fire({
+                title: '¿Ejecutar mantenimiento?',
+                text: "El sistema podría tardar unos segundos en responder.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#0d6efd',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, ejecutar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Deshabilitar botón y mostrar spinner
+                    btn.disabled = true;
+                    btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...`;
+                    
+                    // Enviar el formulario
+                    this.submit();
+                }
+            });
+        });
+    });
+</script>
 @endsection
+

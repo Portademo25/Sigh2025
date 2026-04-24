@@ -10,6 +10,8 @@ use Illuminate\Support\Str;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Admin\AdminReporteController;
+use Illuminate\Support\Facades\Log;
+use App\Services\ArcService; // Importamos el servicio
 
 class ArcController extends Controller
 {
@@ -20,112 +22,123 @@ class ArcController extends Controller
         return view('empleado.reportes.arc_index', compact('anios'));
     }
 
-public function generarArc($ano)
+public function generarArc($ano, ArcService $arcService)
 {
-    if (ob_get_contents()) ob_end_clean(); // Limpia cualquier residuo de salida
+    ini_set('memory_limit', '1024M');
+    set_time_limit(300);
+
+    // Limpieza de buffer para evitar carácteres extraños en el PDF
+    while (ob_get_level()) ob_end_clean();
 
     $user = Auth::user();
+    // Aseguramos que el código de personal tenga los ceros a la izquierda para SIGESP
     $v_codper = str_pad(trim($user->codper), 10, "0", STR_PAD_LEFT);
 
     try {
-        // 1. Datos de la Empresa
-        $datosEmpresa = DB::connection('sigesp')->table('sigesp_empresa')->first();
+        /**
+         * 1. Obtener data procesada a través del Service
+         * El Service ahora se encarga internamente de buscar en 'arc_parametros',
+         * limpiar los strings tipo "00000000500 | A" y consultar SIGESP.
+         */
+        $mesesData = $arcService->obtenerDataReporte($ano, $v_codper);
 
-        $agente = [
-            'nombre'    => $datosEmpresa->nomrep ?? 'S/N',
-            'cedula'    => number_format($datosEmpresa->cedrep ?? 0, 0, '', '.'),
-            'ente'      => $datosEmpresa->nombre ?? 'S/N',
-            'rif'       => $datosEmpresa->rifemp ?? 'S/N',
-            'direccion' => $datosEmpresa->direccion ?? 'S/N',
-            'telefono'  => $datosEmpresa->telemp ?? 'S/N',
-            'ciudad'    => $datosEmpresa->ciuemp ?? 'S/N',
-            'estado'    => $datosEmpresa->estemp ?? 'S/N',
-            'cargo'     => $datosEmpresa->carrep ?? 'DIRECTOR EJECUTIVO'
-        ];
+        $detalles = collect(range(1, 12))->map(function ($mes) use ($mesesData) {
+            $dataMes = $mesesData->firstWhere('mes', $mes);
 
-        // 2. Datos del Trabajador (Garantizando Estatus 1 / Activo)
-        $personal = DB::connection('sigesp')->table('sno_personal')
-            ->select('nomper', 'apeper', 'cedper', 'codper')
-            ->where('codper', $v_codper)
-            ->where('estper', '1')
-            ->first();
+            // Si el service no devuelve datos para ese mes, inicializamos en vacío
+            $detalleOriginal = $dataMes ? (array)$dataMes->detalle : [];
 
-        if (!$personal) {
-            return redirect()->back()->with('error', "No se encontró ficha ACTIVA para el trabajador.");
+            return (object)[
+                'mes'               => $mes,
+                'asignacion'        => $dataMes ? $dataMes->remuneracion : 0,
+                'ret_islr'          => 0, // Puedes mapear esto si tienes el concepto de ISLR en el mapa
+                'otras_retenciones' => 0,
+                'detalle_original'  => $detalleOriginal,
+                'total_patronales'  => $dataMes ? $dataMes->total_patronales : 0
+            ];
+        });
+
+        // 2. Datos de SIGESP (Datos maestros del empleado y la institución)
+        $personal = DB::connection('sigesp')->table('sno_personal')->where('codper', $v_codper)->first();
+        $empresa = DB::connection('sigesp')->table('sigesp_empresa')->first();
+
+        // 3. Lógica de Logo Dinámico
+        $logoDinamicoPath = DB::table('settings')->where('key', 'logo_path')->value('value');
+
+        if ($logoDinamicoPath && file_exists(public_path('storage/' . $logoDinamicoPath))) {
+            $logoInstitucion = public_path('storage/' . $logoDinamicoPath);
+        } else {
+            $logoInstitucion = public_path('images/logo-fona.png');
         }
 
-        // 3. Consulta de Remuneraciones
-        // 3. Consulta de Remuneraciones AJUSTADA (Solo P1 y Filtro de Seguridad)
-$nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0009', '0010', '0011', '0012', '0013', '0014', '0051', '0052', '0053', '0054', '0055', '0056'];
-
-$detalles = DB::connection('sigesp')
-    ->table('sno_hsalida as hs')
-    ->join('sno_hperiodo as hp', function($join) {
-        $join->on('hs.codnom', '=', 'hp.codnom')
-             ->on('hs.codperi', '=', 'hp.codperi');
-    })
-    ->select(
-        DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
-
-        // ASIGNACIONES: Suma conceptos 001, 002 y 006 (Sueldo y Primas)
-        // Ignora cualquier registro individual mayor a 5000 para limpiar el error de Enero
-        DB::raw("SUM(CASE
-            WHEN hs.tipsal IN ('A', 'A ')
-            AND hs.valsal < 5000
-            AND hs.codconc IN ('0000000001', '0000000002', '0000000006')
-            THEN ABS(hs.valsal) ELSE 0 END) as asignacion"),
-
-        // RETENCIONES: Solo tipo P1 como solicitaste
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000500' THEN ABS(hs.valsal) ELSE 0 END) as monto_sso"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000002' THEN ABS(hs.valsal) ELSE 0 END) as monto_inces"),
-        DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000503' THEN ABS(hs.valsal) ELSE 0 END) as monto_pension")
-    )
-    ->where('hs.codper', $v_codper)
-    ->whereIn('hs.codnom', $nominasARC)
-    ->whereYear('hp.fecdesper', $ano)
-    ->groupBy('mes')
-    ->orderBy('mes')
-    ->get();
-        // 4. Token y QR
-        $token = Str::random(32);
-        $qrCode = base64_encode(QrCode::format('svg')->size(80)->margin(0)->generate(route('arc.verificar', $token)));
-
-        // 5. Logos (Restaurados para evitar el error de variable indefinida)
-        $pathRepublica = public_path('images/logo_ministerio.png');
-        $pathEnte = public_path('images/logo_fona.png');
-
-        $logoRepublica = file_exists($pathRepublica) ? base64_encode(file_get_contents($pathRepublica)) : "";
-        $logoEnte = file_exists($pathEnte) ? base64_encode(file_get_contents($pathEnte)) : "";
-
-        $meses = [
-            1 => 'ENERO', 2 => 'FEBRERO', 3 => 'MARZO', 4 => 'ABRIL',
-            5 => 'MAYO', 6 => 'JUNIO', 7 => 'JULIO', 8 => 'AGOSTO',
-            9 => 'SEPTIEMBRE', 10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE'
-        ];
+        // 4. Cálculos de totales finales basados en la colección de detalles
+        $total_asignacion = $detalles->sum('asignacion');
+        $total_desglose_ley = $detalles->sum('total_patronales');
 
         $data = [
-            'agente'        => $agente,
-            'personal'      => $personal,
-            'ano'           => $ano,
-            'detalles'      => $detalles,
-            'meses'         => $meses,
-            'qrCode'        => $qrCode,
-            'logoRepublica' => $logoRepublica,
-            'logoEnte'      => $logoEnte,
-            'fecha'         => date('d/m/Y')
+            'agente' => [
+                'nombre'    => $empresa->nomrep ?? 'S/N',
+                'cedula'    => number_format($empresa->cedrep ?? 0, 0, '', '.'),
+                'ente'      => $empresa->nombre ?? 'S/N',
+                'rif'       => $empresa->rifemp ?? 'S/N',
+                'direccion' => $empresa->diremp ?? 'S/N',
+                'telefono'  => $empresa->telemp ?? 'S/N',
+                'ciudad'    => $empresa->ciuemp ?? 'CARACAS',
+                'estado'    => $empresa->estemp ?? 'DISTRITO CAPITAL',
+                'cargo'     => 'DIRECTOR EJECUTIVO',
+            ],
+            'personal' => (object)[
+                'codper' => $personal->codper ?? $v_codper,
+                'cedper' => $personal->cedper ?? '0',
+                'nomper' => trim(($personal->nomper ?? '') . ' ' . ($personal->apeper ?? '')),
+            ],
+            'detalles' => $detalles,
+            'total_desglose_ley' => round($total_desglose_ley, 2),
+            'totales'  => [
+                'total_asignacion' => round($total_asignacion, 2),
+                'total_ret_islr'   => 0,
+                'total_otras'      => 0,
+                'total_general'    => round($total_asignacion, 2),
+            ],
+            'ano'   => $ano,
+            'fecha' => date('d/m/Y'),
+            'meses' => [
+                1=>'ENERO', 2=>'FEBRERO', 3=>'MARZO', 4=>'ABRIL',
+                5=>'MAYO', 6=>'JUNIO', 7=>'JULIO', 8=>'AGOSTO',
+                9=>'SEPTIEMBRE', 10=>'OCTUBRE', 11=>'NOVIEMBRE', 12=>'DICIEMBRE'
+            ],
+            'logoRepublica' => public_path('images/logo_ministerio.png'),
+            'logoFona'      => $logoInstitucion,
         ];
 
-        return Pdf::loadView('empleado.reportes.arc_pdf', $data)
-            ->setPaper('letter', 'portrait')
-            ->stream("ARC_{$ano}.pdf");
+        // 5. Generación del PDF
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('empleado.reportes.arc_pdf', $data)
+            ->setPaper('letter')
+            ->stream("ARC_{$v_codper}_{$ano}.pdf");
 
     } catch (\Exception $e) {
-        return dd("Error técnico: " . $e->getMessage() . " en Línea: " . $e->getLine());
+        // Log del error para depuración en Debian
+        Log::error("Error en generarArc: " . $e->getMessage());
+        return "Hubo un error al generar el reporte: " . $e->getMessage();
     }
 }
+/**
+ * Función auxiliar para convertir imágenes a Base64
+ * Asegúrate de que las imágenes estén en public/images/
+ */
+private function cargarLogo($nombreArchivo)
+{
+    $ruta = public_path('images/' . $nombreArchivo); // Ajusta la carpeta si es necesario
+
+    if (!file_exists($ruta)) {
+        return null;
+    }
+
+    $contenido = file_get_contents($ruta);
+    $tipo = pathinfo($ruta, PATHINFO_EXTENSION);
+    return 'data:image/' . $tipo . ';base64,' . base64_encode($contenido);
+}
+// Métodos auxiliares para limpiar el código principal
 
     public function index(Request $request)
     {
@@ -149,104 +162,121 @@ $detalles = DB::connection('sigesp')
         return view('admin.reportes.index_arc', compact('personal', 'anios'));
     }
 
-    public function generarArcAdmin($cedper, $ano)
+public function generarArcAdmin($cedper, $ano, ArcService $arcService)
 {
-    if (ob_get_contents()) ob_end_clean();
+    // Limpieza de buffer para evitar carácteres extraños en el PDF
+    if (ob_get_level()) ob_end_clean();
 
     try {
-        // 1. Datos de la Empresa (Igual al anterior)
-        $datosEmpresa = DB::connection('sigesp')->table('sigesp_empresa')->first();
-
-        $agente = [
-            'nombre'    => $datosEmpresa->nomrep ?? 'S/N',
-            'cedula'    => number_format($datosEmpresa->cedrep ?? 0, 0, '', '.'),
-            'ente'      => $datosEmpresa->nombre ?? 'S/N',
-            'rif'       => $datosEmpresa->rifemp ?? 'S/N',
-            'direccion' => $datosEmpresa->direccion ?? 'S/N',
-            'telefono'  => $datosEmpresa->telemp ?? 'S/N',
-            'ciudad'    => $datosEmpresa->ciuemp ?? 'S/N',
-            'estado'    => $datosEmpresa->estemp ?? 'S/N',
-            'cargo'     => $datosEmpresa->carrep ?? 'DIRECTOR EJECUTIVO'
-        ];
-
-        // 2. BUSQUEDA DEL TRABAJADOR (Cambio clave: buscamos por la cédula recibida)
-        // Normalizamos el codper si es necesario
+        // 1. Búsqueda del Trabajador en SIGESP
+        // Usamos la conexión a SIGESP para validar que el trabajador existe
         $personal = DB::connection('sigesp')->table('sno_personal')
             ->select('nomper', 'apeper', 'cedper', 'codper')
-            ->where('cedper', $cedper) // Buscamos por la cédula que viene de la URL
-            ->where('estper', '1')     // Solo activos
+            ->where('cedper', $cedper)
             ->first();
 
         if (!$personal) {
-            return redirect()->back()->with('error', "No se encontró ficha ACTIVA para la cédula: $cedper");
+            return redirect()->back()->with('error', "No se encontró el personal con cédula: $cedper");
         }
 
+        // Formateamos el codper con ceros a la izquierda para la consulta en tablas históricas
         $v_codper = str_pad(trim($personal->codper), 10, "0", STR_PAD_LEFT);
 
-        // 3. Consulta de Remuneraciones (Usamos el $v_codper encontrado)
-        $nominasARC = ['0001', '0002', '0003', '0004', '0005', '0006', '0009', '0010', '0011', '0012', '0013', '0014', '0051', '0052', '0053', '0054', '0055', '0056'];
+        /**
+         * 2. Obtener data procesada
+         * El Service ya fue ajustado para limpiar los códigos de nómina "00000000500 | A"
+         * y filtrar solo por lo configurado en arc_parametros.
+         */
+        $mesesData = $arcService->obtenerDataReporte($ano, $v_codper);
 
-        $detalles = DB::connection('sigesp')
-            ->table('sno_hsalida as hs')
-            ->join('sno_hperiodo as hp', function($join) {
-                $join->on('hs.codnom', '=', 'hp.codnom')
-                     ->on('hs.codperi', '=', 'hp.codperi');
-            })
-            ->select(
-                DB::raw('EXTRACT(MONTH FROM hp.fecdesper) as mes'),
-                DB::raw("SUM(CASE
-                    WHEN hs.tipsal IN ('A', 'A ')
-                    AND hs.valsal < 5000
-                    AND hs.codconc IN ('0000000001', '0000000002', '0000000006')
-                    THEN ABS(hs.valsal) ELSE 0 END) as asignacion"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000001' THEN ABS(hs.valsal) ELSE 0 END) as ret_islr"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000502' THEN ABS(hs.valsal) ELSE 0 END) as monto_faov"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000500' THEN ABS(hs.valsal) ELSE 0 END) as monto_sso"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000501' THEN ABS(hs.valsal) ELSE 0 END) as monto_pie"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000002' THEN ABS(hs.valsal) ELSE 0 END) as monto_inces"),
-                DB::raw("SUM(CASE WHEN hs.tipsal = 'P1' AND hs.codconc = '0000000503' THEN ABS(hs.valsal) ELSE 0 END) as monto_pension")
-            )
-            ->where('hs.codper', $v_codper)
-            ->whereIn('hs.codnom', $nominasARC)
-            ->whereYear('hp.fecdesper', $ano)
-            ->groupBy('mes')
-            ->orderBy('mes')
-            ->get();
+        // 3. Mapeo dinámico de los 12 meses
+        $detalles = collect(range(1, 12))->map(function ($mes) use ($mesesData) {
+            $dataMes = $mesesData->firstWhere('mes', $mes);
 
-        // 4. Token y QR (Se mantiene la validación)
-        $token = Str::random(32);
-        $qrCode = base64_encode(QrCode::format('svg')->size(80)->margin(0)->generate(route('arc.verificar', $token)));
+            // detalle_original contiene los objetos {monto, nombre} (Patronales/Ley)
+            $detalleOriginal = $dataMes ? (array)$dataMes->detalle : [];
 
-        // 5. Logos y Preparación de Data (Igual al anterior)
-        $pathRepublica = public_path('images/logo_ministerio.png');
-        $pathEnte = public_path('images/logo_fona.png');
-        $logoRepublica = file_exists($pathRepublica) ? base64_encode(file_get_contents($pathRepublica)) : "";
-        $logoEnte = file_exists($pathEnte) ? base64_encode(file_get_contents($pathEnte)) : "";
+            return (object)[
+                'mes'               => $mes,
+                'asignacion'        => $dataMes ? $dataMes->remuneracion : 0,
+                'ret_islr'          => 0,
+                'otras_retenciones' => 0,
+                'detalle_original'  => $detalleOriginal,
+                'total_patronales'  => $dataMes ? $dataMes->total_patronales : 0 // Importante para el desglose
+            ];
+        });
 
-        $meses = [1 => 'ENERO', 2 => 'FEBRERO', 3 => 'MARZO', 4 => 'ABRIL', 5 => 'MAYO', 6 => 'JUNIO', 7 => 'JULIO', 8 => 'AGOSTO', 9 => 'SEPTIEMBRE', 10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE'];
+        // 4. Datos de la Institución y Logo Dinámico
+        $datosEmpresa = DB::connection('sigesp')->table('sigesp_empresa')->first();
+        $logoDinamicoPath = DB::table('settings')->where('key', 'logo_path')->value('value');
 
+        if ($logoDinamicoPath && file_exists(public_path('storage/' . $logoDinamicoPath))) {
+            $logoInstitucion = public_path('storage/' . $logoDinamicoPath);
+        } else {
+            $logoInstitucion = public_path('images/logo-fona.png');
+        }
+
+        // 5. Cálculo dinámico del total anual para el desglose de ley
+        // Sumamos el campo total_patronales que calculó el Service
+        $total_desglose_ley = $detalles->sum('total_patronales');
+
+        // 6. Preparación de data para la vista
         $data = [
-            'agente'        => $agente,
-            'personal'      => $personal,
-            'ano'           => $ano,
-            'detalles'      => $detalles,
-            'meses'         => $meses,
-            'qrCode'        => $qrCode,
-            'logoRepublica' => $logoRepublica,
-            'logoEnte'      => $logoEnte,
-            'fecha'         => date('d/m/Y')
+            'agente' => [
+                'nombre'    => $datosEmpresa->nomrep ?? 'S/N',
+                'cedula'    => number_format($datosEmpresa->cedrep ?? 0, 0, '', '.'),
+                'ente'      => $datosEmpresa->nombre ?? 'S/N',
+                'rif'       => $datosEmpresa->rifemp ?? 'S/N',
+                'direccion' => $datosEmpresa->diremp ?? $datosEmpresa->direccion ?? 'S/N',
+                'telefono'  => $datosEmpresa->telemp ?? 'S/N',
+                'ciudad'    => $datosEmpresa->ciuemp ?? 'S/N',
+                'estado'    => $datosEmpresa->estemp ?? 'S/N',
+                'cargo'     => 'DIRECTOR EJECUTIVO',
+            ],
+            'personal' => (object)[
+                'codper' => $personal->codper,
+                'cedper' => $personal->cedper,
+                'nomper' => strtoupper(trim($personal->nomper . ' ' . $personal->apeper)),
+            ],
+            'detalles' => $detalles,
+            'total_desglose_ley' => round($total_desglose_ley, 2),
+            'totales'  => [
+                'total_asignacion' => round($detalles->sum('asignacion'), 2),
+                'total_ret_islr'   => 0,
+                'total_otras'      => 0,
+                'total_general'    => round($detalles->sum('asignacion'), 2),
+            ],
+            'ano'   => $ano,
+            'fecha' => date('d/m/Y'),
+            'meses' => [
+                1 => 'ENERO', 2 => 'FEBRERO', 3 => 'MARZO', 4 => 'ABRIL', 5 => 'MAYO', 6 => 'JUNIO',
+                7 => 'JULIO', 8 => 'AGOSTO', 9 => 'SEPTIEMBRE', 10 => 'OCTUBRE', 11 => 'NOVIEMBRE', 12 => 'DICIEMBRE'
+            ],
+            'logoRepublica' => public_path('images/logo_ministerio.png'),
+            'logoFona'      => $logoInstitucion,
         ];
 
-        // Usamos la misma vista que ya tienes para que el formato sea idéntico
-        return Pdf::loadView('empleado.reportes.arc_pdf', $data)
+        // 7. Registro en Auditoría (Indispensable en Debian/Producción)
+        DB::table('reporte_descargas')->insert([
+            'cedula'          => $personal->cedper,
+            'nombre_empleado' => strtoupper($personal->nomper . ' ' . $personal->apeper),
+            'tipo_reporte'    => 'Planilla ARC (Admin)',
+            'detalles'        => "Generado por Analista: " . Auth::user()->name . " | Año Fiscal: $ano",
+            'created_at'      => now(),
+        ]);
+
+        // Generación del PDF con DomPDF
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('empleado.reportes.arc_pdf', $data)
             ->setPaper('letter', 'portrait')
             ->stream("ARC_{$cedper}_{$ano}.pdf");
 
     } catch (\Exception $e) {
-        return back()->with('error', "Error al generar ARC: " . $e->getMessage());
+        Log::error("Error ARC Admin: " . $e->getMessage());
+        return redirect()->back()
+            ->with('error', "Error al generar el reporte: " . $e->getMessage());
     }
 }
+ }
 
-}
 
 

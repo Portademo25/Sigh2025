@@ -18,45 +18,54 @@ class AppServiceProvider extends ServiceProvider
     }
 
     public function boot()
-    {
-        Paginator::useBootstrapFive();
+{
+    Paginator::useBootstrapFive();
 
-        try {
-            // 1. LÓGICA DE SETTINGS (App Name, Offline y Expiración de Sesión)
-            if (Schema::hasTable('settings')) {
-        $site_settings = DB::table('settings')->pluck('value', 'key')->all();
-        // Esto permite usar $site_settings['institucion_nombre'] en cualquier Blade
-        view()->share('site_settings', $site_settings);
-                // Configurar Nombre de la App
-                if (isset($settings['app_name'])) {
-                    Config::set('app.name', $settings['app_name']->value);
-                }
-
-                // NUEVO: Configurar Expiración de Sesión Dinámica
-                if (isset($settings['expiracion_sesion'])) {
-                    Config::set('session.lifetime', (int)$settings['expiracion_sesion']->value);
-                    // Nota: Esto sobrescribe el valor de config/session.php en cada carga
-                }
-            }
-
-            // 2. CONFIGURACIÓN DE CORREO SMTP (Tabla 'mail_settings')
-            if (Schema::hasTable('mail_settings')) {
-                $mail = DB::table('mail_settings')->first();
-
-                if ($mail) {
-                    Config::set('mail.mailers.smtp.host', $mail->host);
-                    Config::set('mail.mailers.smtp.port', $mail->port);
-                    Config::set('mail.mailers.smtp.encryption', $mail->encryption);
-                    Config::set('mail.mailers.smtp.username', $mail->username);
-                    Config::set('mail.mailers.smtp.password', $mail->password);
-                    Config::set('mail.from.address', $mail->from_address);
-                    Config::set('mail.from.name', $mail->from_name);
-                }
-            }
-
-        } catch (\Exception $e) {
-            // Logueamos el error pero permitimos que la app siga cargando
-            Log::error("Error cargando configuraciones dinámicas: " . $e->getMessage());
-        }
+    // Importante: No ejecutes lógica de DB si estás en la consola (ej. corriendo migraciones)
+    if ($this->app->runningInConsole()) {
+        return;
     }
+
+    try {
+        // Establecemos una conexión por defecto para evitar que use la errónea de SIGESP aquí
+        $db = DB::connection(); 
+
+        // 1. LÓGICA DE SETTINGS
+        if (Schema::hasTable('settings')) {
+            $site_settings = $db->table('settings')->pluck('value', 'key')->all();
+            view()->share('site_settings', $site_settings);
+
+            if (isset($site_settings['app_name'])) {
+                Config::set('app.name', $site_settings['app_name']);
+            }
+
+            if (isset($site_settings['expiracion_sesion'])) {
+                Config::set('session.lifetime', (int)$site_settings['expiracion_sesion']);
+            }
+        }
+
+        // 2. CONFIGURACIÓN DE CORREO SMTP
+        if (Schema::hasTable('mail_settings')) {
+            $mail = $db->table('mail_settings')->first();
+            if ($mail) {
+                config([
+                    'mail.mailers.smtp.host' => $mail->host,
+                    'mail.mailers.smtp.port' => $mail->port,
+                    'mail.mailers.smtp.encryption' => $mail->encryption,
+                    'mail.mailers.smtp.username' => $mail->username,
+                    'mail.mailers.smtp.password' => $mail->password,
+                    'mail.from.address' => $mail->from_address,
+                    'mail.from.name' => $mail->from_name,
+                ]);
+            }
+        }
+
+    } catch (\Exception $e) {
+        // Si la base de datos no conecta, el sistema no muere, solo loguea el error
+        Log::error("Error en AppServiceProvider: " . $e->getMessage());
+        
+        // Compartimos un array vacío para que las vistas no den error de "variable no definida"
+        view()->share('site_settings', []);
+    }
+}
 }

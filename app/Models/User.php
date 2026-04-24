@@ -35,6 +35,7 @@ class User extends Authenticatable
         'estatus_id',
         'organizacion_id',
         'codper',
+        'current_session_id'
     ];
 
     protected $casts = [

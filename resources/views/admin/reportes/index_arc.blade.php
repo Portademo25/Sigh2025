@@ -49,9 +49,11 @@
                                 </select>
                             </td>
                             <td class="text-center">
-                                <button onclick="descargarArcAdmin('{{ $p->cedper }}')" class="btn btn-sm btn-success">
-                                    <i class="bi bi-file-earmark-pdf"></i> Generar ARC
-                                </button>
+                            <button type="button"
+        onclick="descargarArcAdmin(event, '{{ $p->cedper }}')"
+        class="btn btn-sm btn-success">
+    <i class="bi bi-file-earmark-pdf"></i> Generar ARC
+</button>
                             </td>
                         </tr>
                         @endforeach
@@ -62,10 +64,26 @@
     </div>
 </div>
 
+
 <script>
-function descargarArcAdmin(cedula) {
-    const ano = document.getElementById('ano_' + cedula).value;
-    window.open(`/admin/reportes/arc/generar/${cedula}/${ano}`, '_blank');
+function descargarArcAdmin(event, cedula) {
+    // 1. Prevenir que se refresque (por seguridad extra)
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+
+    const select = document.getElementById('ano_' + cedula);
+    if (!select) return;
+
+    const ano = select.value;
+
+    // 2. Construir la URL con el nombre de la ruta que ajustamos en web.php
+    let url = "{{ route('admin.arc.generar', [':ced', ':ano']) }}";
+    url = url.replace(':ced', cedula).replace(':ano', ano);
+
+    // 3. Abrir en pestaña nueva
+    window.open(url, '_blank');
 }
 </script>
 @endsection

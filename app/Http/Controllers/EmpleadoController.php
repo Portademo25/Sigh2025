@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB; // IMPORTANTE: Para las consultas a SIGESP
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use App\Services\ArcService; // Asegúrate de tener este Service creado para la lógica de clasificación de conceptos
 
 class EmpleadoController extends Controller
 {
@@ -87,16 +88,20 @@ class EmpleadoController extends Controller
      */
 public function misRecibos()
 {
-    // Usamos el helper auth() para obtener el usuario actual
+    // 1. Obtenemos el usuario y formateamos su código de personal
     $user = Auth::user();
-
-    // Aseguramos que la cédula tenga los 10 dígitos (relleno con ceros)
     $codper = str_pad($user->codper, 10, "0", STR_PAD_LEFT);
 
-    // Lista de códigos de nóminas ordinarias (según tu base de datos)
-    $nominasNormales = ['0001', '0002', '0003', '0004', '0005', '0006'];
+    // 2. Obtener las nóminas habilitadas desde la configuración dinámica
+    // Usamos el año actual para filtrar la configuración activa
+    $anioActual = date('Y');
+    $config = DB::table('arc_parametros')->where('anio', $anioActual)->first();
 
-    $recibos = DB::connection('sigesp')
+    // Si existe configuración, usamos esos códigos; si no, inicializamos array vacío
+    $nominasHabilitadas = $config ? json_decode($config->nominas) : [];
+
+    // 3. Consulta a SIGESP
+    $query = DB::connection('sigesp')
         ->table('sno_hperiodo as hp')
         ->join('sno_hresumen as hr', function($join) {
             $join->on('hp.codnom', '=', 'hr.codnom')
@@ -110,9 +115,15 @@ public function misRecibos()
             'hr.monnetres'
         )
         ->where('hr.codper', '=', $codper)
-        ->whereIn('hp.codnom', $nominasNormales) // Solo nóminas de sueldo
-        ->where('hr.monnetres', '>', 0)          // Solo recibos con pago real
-        ->orderBy('hp.fecdesper', 'desc')        // Los más recientes primero
+        ->where('hr.monnetres', '>', 0);
+
+    // 4. Aplicamos el filtro de nóminas solo si hay configuración guardada
+    // Esto permite que el sistema sea flexible si aún no se han cargado parámetros
+    if (!empty($nominasHabilitadas)) {
+        $query->whereIn('hp.codnom', $nominasHabilitadas);
+    }
+
+    $recibos = $query->orderBy('hp.fecdesper', 'desc')
         ->paginate(12);
 
     return view('empleado.reportes.recibos', compact('recibos'));
@@ -123,112 +134,150 @@ public function menuReportes()
 }
 
 
-public function descargarPDF($codnom, $codperi)
+public function descargarPDF($codnom, $codperi, ArcService $arcService)
 {
-    $user = \Illuminate\Support\Facades\Auth::user();
+    $user = Auth::user();
     $v_codnom  = str_pad($codnom, 4, "0", STR_PAD_LEFT);
     $v_codperi = str_pad($codperi, 3, "0", STR_PAD_LEFT);
     $v_codper  = str_pad($user->codper, 10, "0", STR_PAD_LEFT);
+    $anioActual = date('Y');
+
+    if (ob_get_level()) ob_end_clean();
 
     try {
-        // 1. Datos del encabezado (Join con PERSONAL para el nombre y PERSONALNOMINA para la cuenta)
+        // 1. Datos del encabezado (Inyectamos Join de Unidad Administrativa)
         $resumen = DB::connection('sigesp')
-    ->table('sno_hresumen as hr')
-    ->join('sno_nomina as n', 'hr.codnom', '=', 'n.codnom')
-    ->join('sno_hperiodo as hp', function($join) {
-        $join->on('hr.codnom', '=', 'hp.codnom')->on('hr.codperi', '=', 'hp.codperi');
-    })
-    ->join('sno_personalnomina as pn', function($join) {
-        $join->on('hr.codnom', '=', 'pn.codnom')
-             ->on('hr.codper', '=', 'pn.codper');
-    })
-    ->join('sno_personal as p', 'hr.codper', '=', 'p.codper')
-    ->select(
-        'hr.*', 
-        'n.desnom', 
-        'hp.fecdesper', 
-        'hp.fechasper', 
-        'pn.fecingper',
-        'pn.codcueban',
-        'p.nomper', 
-        'p.apeper',
-        'p.cedper' // <--- ASEGÚRATE DE INCLUIR ESTA LÍNEA AQUÍ
-    )
-    ->where([
-        ['hr.codnom', $v_codnom], 
-        ['hr.codperi', $v_codperi], 
-        ['hr.codper', $v_codper]
-    ])
-    ->first();
+            ->table('sno_hresumen as hr')
+            ->join('sno_nomina as n', 'hr.codnom', '=', 'n.codnom')
+            ->join('sno_hperiodo as hp', function($join) {
+                $join->on('hr.codnom', '=', 'hp.codnom')->on('hr.codperi', '=', 'hp.codperi');
+            })
+            ->join('sno_personalnomina as pn', function($join) {
+                $join->on('hr.codnom', '=', 'pn.codnom')->on('hr.codper', '=', 'pn.codper');
+            })
+            ->join('sno_personal as p', 'hr.codper', '=', 'p.codper')
+            // Join necesario para evitar error de propiedad desuniadm
+            ->join('sno_unidadadmin as u', function($join) {
+                $join->on('pn.minorguniadm', '=', 'u.minorguniadm')
+                     ->on('pn.uniuniadm', '=', 'u.uniuniadm')
+                     ->on('pn.depuniadm', '=', 'u.depuniadm')
+                     ->on('pn.prouniadm', '=', 'u.prouniadm');
+            })
+            ->select(
+                'hr.*', 
+                'hr.monnetres as neto_cobrar', 
+                'n.desnom', 
+                'hp.fecdesper', 
+                'hp.fechasper',
+                'pn.fecingper', 
+                'pn.codcueban', 
+                'p.nomper', 
+                'p.apeper', 
+                'p.cedper',
+                'u.desuniadm' // <--- Campo ahora disponible
+            )
+            ->where([['hr.codnom', $v_codnom], ['hr.codperi', $v_codperi], ['hr.codper', $v_codper]])
+            ->first();
 
-        if (!$resumen) {
-            return dd("No se encontró el registro para este periodo.");
-        }
+        if (!$resumen) return back()->with('error', "No se encontró el historial de pago.");
 
-        // Asignamos la cuenta al campo que lee el PDF
-        $resumen->ctabanper = $resumen->codcueban ?? '01020135790106615766';
+        $resumen->ctabanper = $resumen->codcueban ?? 'N/A';
 
-        // 2. Consulta de Conceptos
-        $conceptos = DB::connection('sigesp')
+        // 2. Obtener movimientos (Sumatoria y agrupación)
+        $movimientos = DB::connection('sigesp')
             ->table('sno_hsalida as hs')
             ->leftJoin('sno_concepto as c', function($join) {
                 $join->on('hs.codnom', '=', 'c.codnom')->on('hs.codconc', '=', 'c.codconc');
             })
-            ->select('hs.codconc as codcon', 'c.nomcon', 'hs.valsal as valcalcur', 'hs.tipsal')
-            ->where([
-                ['hs.codnom', '=', $v_codnom],
-                ['hs.codperi', '=', $v_codperi],
-                ['hs.codper', '=', $v_codper]
-            ])
+            ->select(
+                'hs.codconc as codcon',
+                'c.nomcon',
+                DB::raw('SUM(hs.valsal) as valcalcur')
+            )
+            ->where([['hs.codnom', '=', $v_codnom], ['hs.codperi', '=', $v_codperi], ['hs.codper', '=', $v_codper]])
+            ->whereIn('hs.tipsal', ['A', 'D', 'P1', 'P2'])
+            ->groupBy('hs.codconc', 'c.nomcon')
             ->get();
 
-        // 3. Lógica de Filtrado
-        $esPar = (intval($v_codperi) % 2 == 0);
-        $quincenaFiltro = $esPar ? 'P2' : 'P1';
+        // 3. Clasificación con ArcService
+        $asigConfiguradas = $arcService->getAsignacionesConfiguradas();
+        $config = DB::table('arc_parametros')->where('anio', $anioActual)->first();
+        $mapa = json_decode($config->clasificacion ?? '{}')->mapa ?? (object)[];
+        $retConfiguradas = collect($mapa->deducciones ?? [])->map(fn($c) => ltrim(trim($c), '0'))->toArray();
 
-        $asignaciones = $conceptos->filter(function($c) {
-            return trim($c->tipsal) == 'A' && floatval($c->valcalcur) > 0;
-        });
+        $asignaciones = $movimientos->filter(function($m) use ($asigConfiguradas) {
+            $cod = ltrim(trim($m->codcon), '0');
+            return in_array($cod, $asigConfiguradas) || $m->valcalcur > 0;
+        })->filter(fn($m) => $m->valcalcur > 0);
 
-        $deducciones = $conceptos->filter(function($c) use ($quincenaFiltro) {
-            $tipo = trim($c->tipsal);
-            $monto = floatval($c->valcalcur);
-            return ($tipo == $quincenaFiltro || $tipo == 'D') && $monto < 0;
-        });
+        $deducciones = $movimientos->filter(function($m) use ($retConfiguradas) {
+            $cod = ltrim(trim($m->codcon), '0');
+            return in_array($cod, $retConfiguradas) || $m->valcalcur < 0;
+        })->filter(fn($m) => $m->valcalcur < 0);
 
+        $totalAsignaciones = $asignaciones->sum('valcalcur');
         $totalDeducciones = $deducciones->sum('valcalcur');
 
-        // --- CAMBIO 1: REGISTRO PARA GRÁFICAS DEL DASHBOARD ---
-        $personalData = (object)[
-            'cedper' => $resumen->cedper,
-            'nomper' => $resumen->nomper,
-            'apeper' => $resumen->apeper
-        ];
+        // --- LÓGICA DE LOGO DINÁMICO (BLINDADA) ---
+        $logoDinamicoPath = DB::table('settings')->where('key', 'logo_path')->value('value');
+        $cleanPath = ltrim(str_replace('storage/', '', $logoDinamicoPath), '/');
+        
+        $pathPublic  = public_path('storage/' . $cleanPath);
+        $pathStorage = storage_path('app/public/' . $cleanPath);
 
-        \App\Http\Controllers\Admin\AdminReporteController::registrarDescarga(
-            $personalData, 
-            'Recibo de Pago', 
-            "Periodo: {$v_codperi} | Nomina: {$v_codnom}"
-        );
+        if (!empty($cleanPath) && file_exists($pathPublic)) {
+            $logoInstitucion = $pathPublic;
+        } elseif (!empty($cleanPath) && file_exists($pathStorage)) {
+            $logoInstitucion = $pathStorage;
+        } else {
+            $logoInstitucion = public_path('images/logo-fona.png');
+        }
+        // ------------------------------------------
 
-        // 4. Generación del PDF
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('empleado.reportes.recibo_pdf', [
+        // 4. Auditoría
+        DB::table('reporte_descargas')->insert([
+            'cedula' => $resumen->cedper,
+            'nombre_empleado' => strtoupper($resumen->nomper . ' ' . $resumen->apeper),
+            'tipo_reporte' => 'Recibo de Pago',
+            'detalles' => "Neto: " . number_format($resumen->neto_cobrar, 2, ',', '.'),
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $data = [
             'resumen' => $resumen,
             'user' => $user,
             'asignaciones' => $asignaciones,
             'deducciones' => $deducciones,
-            'totalDeducciones' => $totalDeducciones
-        ]);
+            'totalAsignaciones' => $totalAsignaciones,
+            'totalDeducciones' => $totalDeducciones,
+            'logoFona' => $logoInstitucion,
+            'logoRepublica' => public_path('images/logo_ministerio.png'),
+            'fecha' => date('d/m/Y')
+        ];
 
-        // --- CAMBIO 2: NOMBRE DEL ARCHIVO PERSONALIZADO ---
-        $nombreDoc = str_replace(' ', '_', trim($resumen->nomper));
-        $apellidoDoc = str_replace(' ', '_', trim($resumen->apeper));
-        $filename = "Recibo_{$nombreDoc}_{$apellidoDoc}_{$resumen->cedper}.pdf";
-
-        return $pdf->download(strtoupper($filename));
+        return \Barryvdh\DomPDF\Facade\Pdf::loadView('empleado.reportes.recibo_pdf', $data)
+            ->setPaper('letter', 'portrait')
+            ->setOptions([
+                'isHtml5ParserEnabled' => true,
+                'isRemoteEnabled'      => true,
+                'chroot'               => [public_path(), storage_path('app/public')],
+            ])
+            ->download(strtoupper("Recibo_{$resumen->cedper}_P{$v_codperi}.pdf"));
 
     } catch (\Exception $e) {
-        return dd("Error al generar PDF: " . $e->getMessage());
+        if (ob_get_length()) ob_end_clean();
+        Log::error("Error en Recibo PDF: " . $e->getMessage());
+        return back()->with('error', "Error al generar el recibo.");
     }
+}
+
+// --- SOLUCIÓN ERROR METHOD DOES NOT EXIST ---
+private function cargarLogo($nombreArchivo)
+{
+    $path = public_path('images/' . $nombreArchivo);
+    if (!file_exists($path)) return '';
+    $type = pathinfo($path, PATHINFO_EXTENSION);
+    $data = file_get_contents($path);
+    return 'data:image/' . $type . ';base64,' . base64_encode($data);
 }
 }

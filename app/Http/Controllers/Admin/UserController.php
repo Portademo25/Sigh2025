@@ -104,18 +104,59 @@ public function rolesIndex()
 
 
 public function updateUserRole(Request $request, User $user)
-{
-    $request->validate([
-        'rol_id' => 'required|in:1,2', // 1: Admin, 2: Empleado
-    ]);
+    {
+        // 1. Validación de los IDs que vimos en tu pgAdmin
+        $request->validate([
+            'rol_id' => 'required|in:1,2'
+        ]);
 
-    // Evitar que el admin se quite el rango a sí mismo por accidente
-    if ($user->id === Auth::id() && $request->rol_id != 1) {
-        return back()->withErrors(['error' => 'No puedes quitarte el permiso de Administrador a ti mismo.']);
+        // 2. Seguridad: No quitarse permisos a uno mismo
+        if ($user->id === Auth::id() && $request->rol_id != 1) {
+            return back()->withErrors(['error' => 'No puedes revocarte los permisos de administrador.']);
+        }
+
+        try {
+            // 3. Sincronización de Roles (Spatie + Tu columna manual)
+            // Esto es lo que hace que el middleware 'role:admin' funcione
+            $nombreRol = ($request->rol_id == 1) ? 'admin' : 'empleado';
+            
+            // Asignamos el rol en las tablas de Spatie (model_has_roles)
+            $user->syncRoles([$nombreRol]);
+
+            // Actualizamos tu columna manual en la tabla users
+            $user->rol_id = $request->rol_id;
+
+            // 4. Mantenimiento de Sesión (Para CheckSessionId)
+            // Si el usuario soy yo, evito que el middleware global me saque
+            if ($user->id === Auth::id()) {
+                $user->current_session_id = session()->getId();
+            }
+
+            $user->save();
+
+            // 5. Refrescar la instancia de Autenticación
+            if ($user->id === Auth::id()) {
+                // Forzamos a Laravel a cargar los nuevos roles y datos en memoria
+                Auth::setUser($user->fresh());
+            }
+
+            // 6. Auditoría de Seguridad Sigh2025
+            if (function_exists('record_security_event')) {
+                record_security_event('Cambio de Privilegios', 'Alta', [
+                    'usuario' => $user->cedula,
+                    'nuevo_rol' => $nombreRol
+                ]);
+            }
+
+            // 7. Redirección final
+            if ($user->id === Auth::id() && $user->rol_id == 1) {
+                return redirect()->route('admin.dashboard')->with('success', '¡Rol de Administrador activado correctamente!');
+            }
+
+            return back()->with('success', "Se ha asignado el rol de {$nombreRol} a {$user->name}.");
+
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Error al sincronizar roles: ' . $e->getMessage()]);
+        }
     }
-
-    $user->update(['rol_id' => $request->rol_id]);
-
-    return back()->with('success', "Rol de {$user->name} actualizado correctamente.");
-}
 }

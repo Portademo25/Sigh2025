@@ -40,9 +40,9 @@
                         <div class="row g-3">
                             <div class="col-md-12">
                                 <label class="form-label fw-bold">Nombre del Organismo <span class="text-danger">*</span></label>
-                                <input type="text" name="institucion_nombre" 
-                                     class="form-control @error('institucion_nombre') is-invalid @enderror" 
-                                     value="{{ old('institucion_nombre', $config['institucion_nombre'] ?? '') }}" 
+                                <input type="text" name="institucion_nombre"
+                                     class="form-control @error('institucion_nombre') is-invalid @enderror"
+                                     value="{{ old('institucion_nombre', $config['institucion_nombre'] ?? '') }}"
                                      required>
                                 @error('institucion_nombre')
                                     <div class="invalid-feedback">{{ $message }}</div>
@@ -50,9 +50,9 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fw-bold">RIF <span class="text-danger">*</span></label>
-                                <input type="text" name="institucion_rif" 
-                                        class="form-control @error('institucion_rif') is-invalid @enderror" 
-                                        value="{{ old('institucion_rif', $config['institucion_rif'] ?? '') }}" 
+                                <input type="text" name="institucion_rif"
+                                        class="form-control @error('institucion_rif') is-invalid @enderror"
+                                        value="{{ old('institucion_rif', $config['institucion_rif'] ?? '') }}"
                                         placeholder="G-12345678-9"
                                         required>
                             </div>
@@ -93,8 +93,7 @@
                             <div class="p-3 border rounded bg-light d-inline-block shadow-sm">
                                 <img id="logo-preview"
                                      src="{{ (isset($config['logo_path']) && !empty($config['logo_path'])) ? asset('storage/'.$config['logo_path']) : asset('images/logo-fona.png') }}"
-                                     alt="Logo" style="max-height: 150px; width: auto;"
-                                     onerror="this.onerror=null; this.src='{{ asset('images/logo-fona.png') }}';">
+                                     alt="Logo" style="max-height: 150px; width: auto;">
                             </div>
                         </div>
                         <div class="input-group input-group-sm mb-3 px-3">
@@ -493,7 +492,7 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const input = this.closest('.input-group').querySelector('input');
             const icon = this.querySelector('i');
-            
+
             if (input.type === 'password') {
                 input.type = 'text';
                 icon.classList.replace('bi-eye-slash', 'bi-eye');

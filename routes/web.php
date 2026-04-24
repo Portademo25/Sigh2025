@@ -38,19 +38,32 @@ Route::get('/', function () {
     Route::post('/auth/store-user', [OnboardingController::class, 'storeUser'])->name('auth.store_user');
 
 Auth::routes();
-
-    Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth'])->group(function () {
     Route::get('/home', [HomeController::class, 'index'])->name('home');
 
     // Rutas para administradores
     Route::middleware(['role:admin'])->group(function () {
-       Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
+        Route::get('/admin/dashboard', [DashboardController::class, 'index'])->name('admin.dashboard');
         Route::get('users', [UserController::class, 'index'])->name('admin.users.index');
         Route::get('/users/locked', [UserController::class, 'lockedUsers'])->name('admin.users.locked');
         Route::post('/usuarios/{id}/desbloquear', [AdminUserController::class, 'unlockUser'])->name('admin.users.unlock');
         Route::get('/users/connections', [AdminUserController::class, 'connectionHistory'])->name('admin.users.connections');
         Route::get('/users/active', [AdminUserController::class, 'activeUsers'])->name('admin.users.active');
         Route::post('/users/{user}/kick', [AdminUserController::class, 'kickUser'])->name('admin.users.kick');
+
+        // --- SECCIÓN DE REPORTES (AJUSTADA) ---
+        // 1. Primero la ruta específica con parámetros (Generar PDF)
+        Route::get('/admin/reportes/arc/generar/{cedper}/{ano}', [ArcController::class, 'generarArcAdmin'])->name('admin.arc.generar');
+
+        // 2. Luego las rutas generales
+        Route::get('/admin/reportes/arc', [ArcController::class, 'index'])->name('admin.reportes.arc');
+        Route::get('/admin/reportes/constancias', [ConstanciaController::class, 'reporteAdmin'])->name('admin.reporte.constancias');
+        Route::get('/admin/reportes', function () { return view('admin.reportes.menu'); })->name('admin.reportes.menu');
+
+        Route::get('/historial-descargas', [AdminReporteController::class, 'historialDescargas'])->name('admin.historial.descargas');
+        Route::get('/admin/exportar-excel', [AdminController::class, 'exportExcel'])->name('admin.export.excel');
+
+        // --- CONFIGURACIONES Y SEGURIDAD ---
         Route::get('/settings', [SettingsController::class, 'index'])->name('admin.settings.index');
         Route::post('/settings/update', [SettingsController::class, 'update'])->name('admin.settings.update');
         Route::get('/sigesp', [SettingsController::class, 'sigesp'])->name('admin.settings.sigesp');
@@ -60,24 +73,29 @@ Auth::routes();
         Route::post('/settings/correo/test', [SettingsController::class, 'testMailSettings'])->name('admin.mail.test');
         Route::get('/settings/roles', [AdminUserController::class, 'rolesIndex'])->name('admin.settings.roles');
         Route::post('/settings/roles/{user}', [AdminUserController::class, 'updateUserRole'])->name('admin.settings.roles.update');
-        Route::get('/admin/reportes/constancias', [ConstanciaController::class, 'reporteAdmin'])->name('admin.reporte.constancias')->middleware('auth');
-        Route::get('/admin/reportes', function () {return view('admin.reportes.menu');})->name('admin.reportes.menu')->middleware('auth');
-        Route::get('/admin/reportes/arc', [ArcController::class, 'index'])->name('admin.reportes.arc');
-        Route::get('/historial-descargas', [AdminReporteController::class, 'historialDescargas'])->name('admin.historial.descargas');
+
         Route::get('/admin/security', [SettingsController::class, 'securityIndex'])->name('admin.security.index');
         Route::post('/admin/security/action', [SettingsController::class, 'handleSecurityAction'])->name('admin.security.action');
         Route::get('/admin/security/policies', [SettingsController::class, 'policiesIndex'])->name('admin.security.policies');
         Route::post('/admin/security/policies/save', [SettingsController::class, 'updateSecurityPolicies'])->name('admin.security.policies.save');
-        Route::get('/admin/exportar-reportes', [DashboardController::class, 'exportarExcel'])->name('admin.export.excel');
         Route::post('/admin/security/toggle-maintenance', [SettingsController::class, 'toggleMaintenance'])->name('admin.security.toggle-maintenance');
+
         Route::get('/settings/general', [SettingsController::class, 'generalIndex'])->name('admin.settings.general');
         Route::post('/settings/general/update', [SettingsController::class, 'updateGeneral'])->name('admin.settings.general.update');
         Route::post('/settings/test-sigesp', [SettingsController::class, 'testSigespConnection'])->name('admin.settings.test_sigesp');
         Route::post('/settings/test-local', [SettingsController::class, 'testLocalConnection'])->name('admin.settings.test_local');
-        Route::get('/settings/fetch-users', [App\Http\Controllers\Admin\SettingsController::class, 'fetchUsers'])->name('admin.settings.fetch_users');
+        Route::get('/settings/fetch-users', [SettingsController::class, 'fetchUsers'])->name('admin.settings.fetch_users');
         Route::put('/admin/settings/users/{user}/update-email', [SettingsController::class, 'updateEmail'])->name('admin.users.update_email');
-        Route::get('/admin/reportes/arc/generar/{cedper}/{ano}', [ArcController::class, 'generarArcAdmin'])->name('admin.arc.generar');
+        Route::get('/admin/security/download-logs', [AdminController::class, 'downloadLogs'])->name('admin.security.download');
+        Route::post('/admin/security/optimize', [AdminController::class, 'optimizeSystem'])->name('admin.security.optimize');
+        Route::post('/admin/security/clear-cache', [AdminController::class, 'clearCache'])->name('admin.security.cache');
+    // Cambia 'nominas' por 'indexParametrosArc'
+       // El GET debe llamar a 'nominas'
+// Verifica que el nombre de la ruta sea exactamente este
+Route::get('/admin/settings/nominas', [SettingsController::class, 'nominas'])->name('admin.settings.nominas');
+Route::post('/admin/settings/nominas', [SettingsController::class, 'storeParametrosArc'])->name('admin.settings.arc.store');
     });
+
 // Rutas para empleados
     Route::middleware(['role:empleado'])->group(function () {
         Route::get('/empleado/dashboard', function () {return view('empleado.dashboard');})->name('empleado.dashboard');
@@ -105,6 +123,14 @@ Auth::routes();
        Route::get('/rrhh/personal/constancias', [PersonalController::class, 'listaConstancias'])->name('rrhh.personal.constancias.index');
        Route::get('/rrhh/personal/constancia/descargar/{cedper}', [PersonalController::class, 'descargarConstancia'])->name('rrhh.personal.constancia');
        Route::get('/rrhh/constancias/validar', [PersonalController::class, 'indexValidacion'])->name('rrhh.constancias.validar');
+       Route::get('/gestion-arc', [PersonalController::class, 'vistaGestionArc'])->name('rrhh.personal.gestion_arc');
+       Route::post('/rrhh/personal/guardar-arc', [PersonalController::class, 'listar_nomina_arc'])->name('rrhh.personal.listar_nomina_arc');
+       Route::get('/rrhh/personal/pdf-arc/{cedula}/{anio}', [PersonalController::class, 'generarPdfArc'])->name('rrhh.personal.pdf_arc');
+       // Ruta para ver la lista de trabajadores (GET)
+       Route::get('/personal/lista-arc', [PersonalController::class, 'indexTrabajadoresArc'])
+    ->name('rrhh.personal.lista_trabajadores_arc');
+    Route::get('/rrhh/notificacion-cumpleanos', [TuControlador::class, 'mostrarNotificacionCumpleanos'])
+    ->name('rrhh.cumpleanos.notificacion');
     });
 
 

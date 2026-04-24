@@ -84,16 +84,12 @@ function generarARC(cedula) {
     if (!selectAno) return;
     const ano = selectAno.value;
 
+    // Generamos la URL
     let url = "{{ route('rrhh.arc.generar', [':ced', ':ano']) }}";
     url = url.replace(':ced', cedula).replace(':ano', ano);
 
-    // MÉTODO DEL ENLACE FANTASMA (Infallible para descargas)
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `ARC_${cedula}_${ano}.pdf`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Abrir en pestaña nueva: esto permite ver el error de Laravel si algo falla
+    window.open(url, '_blank');
 }
 </script>
 

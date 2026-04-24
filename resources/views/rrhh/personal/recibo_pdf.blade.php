@@ -25,7 +25,6 @@
             <td width="60%" class="inst-text">
                 REPUBLICA BOLIVARIANA DE VENEZUELA <br>
                 MINISTERIO DEL PODER POPULAR PARA RELACIONES INTERIORES, JUSTICIA Y PAZ <br>
-                SUPERINTENDENCIA NACIONAL ANTIDROGAS <br>
                 FONDO NACIONAL ANTIDROGAS
             </td>
             <td width="20%" class="text-right"><img src="{{ public_path('images/logo_fona.png') }}" style="height: 55px;"></td>
@@ -55,7 +54,7 @@
         </tr>
         <tr>
             <td class="bold">DEPENDENCIA:</td>
-            <td colspan="3">{{ $resumen->desuniadm ?? 'OFICINA DE TECNOLOGIA DE LA INFORMACION Y LA COMUNICACION' }}</td>
+            <td colspan="3">{{ $resumen->desuniadm }}</td>
         </tr>
         <tr>
             <td class="bold">CUENTA BANCARIA:</td>

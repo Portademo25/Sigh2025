@@ -9,29 +9,45 @@
                 </div>
 
                 <div class="card-body bg-light">
+    <?php if(request('fecha_inicio') || request('fecha_fin')): ?>
+        <div class="alert alert-primary d-flex justify-content-between align-items-center shadow-sm py-2 mb-4 border-0" style="background-color: #e7f1ff;">
+            <div>
+                <i class="bi bi-info-circle-fill me-2"></i>
+                Filtrando desde <strong><?php echo e(\Carbon\Carbon::parse($fechaInicio)->format('d/m/Y')); ?></strong>
+                hasta <strong><?php echo e(\Carbon\Carbon::parse($fechaFin)->format('d/m/Y')); ?></strong>
+            </div>
+            <a href="<?php echo e(route('admin.dashboard')); ?>" class="btn btn-sm btn-primary">
+                <i class="bi bi-x-circle me-1"></i> Quitar Filtro
+            </a>
+        </div>
+    <?php endif; ?>
 
-                    <div class="card shadow-sm border-0 mb-4">
-                        <div class="card-body py-3">
-                            <form action="<?php echo e(route('admin.dashboard')); ?>" method="GET" class="row g-3 align-items-end">
-                                <div class="col-md-3 col-sm-6">
-                                    <label class="form-label small fw-bold text-muted">Desde:</label>
-                                    <input type="date" name="fecha_inicio" value="<?php echo e($fechaInicio); ?>" class="form-control form-control-sm shadow-sm">
-                                </div>
-                                <div class="col-md-3 col-sm-6">
-                                    <label class="form-label small fw-bold text-muted">Hasta:</label>
-                                    <input type="date" name="fecha_fin" value="<?php echo e($fechaFin); ?>" class="form-control form-control-sm shadow-sm">
-                                </div>
-                                <div class="col-md-4">
-                                    <button type="submit" class="btn btn-primary btn-sm px-3 shadow-sm">
-                                        <i class="bi bi-filter me-1"></i> Filtrar Panel
-                                    </button>
-                                    <a href="<?php echo e(route('admin.dashboard')); ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
-                                        <i class="bi bi-arrow-clockwise me-1"></i> Limpiar
-                                    </a>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body py-3">
+            <form action="<?php echo e(route('admin.dashboard')); ?>" method="GET" class="row g-3 align-items-end">
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small fw-bold text-muted">Desde:</label>
+                    <input type="date" name="fecha_inicio"
+                           value="<?php echo e($fechaInicio); ?>"
+                           class="form-control form-control-sm shadow-sm border-primary-subtle">
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small fw-bold text-muted">Hasta:</label>
+                    <input type="date" name="fecha_fin"
+                           value="<?php echo e($fechaFin); ?>"
+                           class="form-control form-control-sm shadow-sm border-primary-subtle">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-primary btn-sm px-4 shadow-sm">
+                        <i class="bi bi-filter-right me-1"></i> Aplicar Filtros
+                    </button>
+                    <a href="<?php echo e(route('admin.dashboard')); ?>" class="btn btn-outline-secondary btn-sm px-3 shadow-sm">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Reestablecer
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
 
                     <div class="row mb-4">
                         <div class="col-md-4">

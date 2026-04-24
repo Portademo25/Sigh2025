@@ -45,7 +45,7 @@
                             <label class="text-muted small fw-bold text-uppercase">Estado Civil / Sexo</label>
                             <div class="fs-6">
                                 @php
-                                    $estados = ['S' => 'Soltero(a)', 'C' => 'Casado(a)', 'V' => 'Viudo(a)', 'D' => 'Divorciado(a)'];
+                                    $estados = ['S' => 'Soltero(a)', 'C' => 'Casado(a)', 'V' => 'Viudo(a)', 'D' => 'Divorciado(a)' , 'K' => 'Concubino(a)'];
                                     $estado = $estados[$empleado->edocivper] ?? 'No definido';
                                     $sexo = $empleado->sexper == 'M' ? 'Masculino' : 'Femenino';
                                 @endphp
@@ -79,7 +79,7 @@
                             <label class="text-muted small fw-bold text-uppercase">Nivel Académico</label>
                             <div class="fs-6">
                                 @php
-                                    $niveles = ['1' => 'Primaria', '2' => 'Bachiller', '3' => 'Universitario', '4' => 'Postgrado'];
+                                    $niveles = ['0' => 'Ninguno ', '1' => 'Primaria', '2' => 'Bachiller', '9' => 'Técnico Medio', '3' => 'Técnico Superior', '4' => 'Universitario', '5' => 'Maestria', '6' => 'Postgrado', '7' => 'Doctorado', '8' => 'Especialización'];
                                 @endphp
                                 {{ $niveles[$empleado->nivacaper] ?? 'No especificado' }}
                             </div>

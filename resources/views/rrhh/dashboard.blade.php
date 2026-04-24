@@ -3,6 +3,7 @@
 @section('content')
 
 <div class="container-fluid py-4">
+    {{-- 1. FILA DE BIENVENIDA --}}
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex align-items-center justify-content-between bg-white p-4 rounded shadow-sm border-start border-4 border-primary">
@@ -21,6 +22,14 @@
         </div>
     </div>
 
+    {{-- 2. WIDGET DE CUMPLEAÑEROS (NUEVA INTEGRACIÓN) --}}
+    <div class="row mb-2">
+        <div class="col-12">
+            @include('rrhh.widgets.notificacion_cumpleanos', ['cumpleaneros' => $cumpleaneros])
+        </div>
+    </div>
+
+    {{-- 3. TARJETAS DE ESTADÍSTICAS --}}
     <div class="row">
         <div class="col-md-4 mb-4">
             <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
@@ -74,100 +83,117 @@
         </div>
     </div>
 
+    {{-- 4. ACCIONES Y BENEFICIOS --}}
+    <div class="row g-4 row-cols-1 row-cols-lg-3 align-items-stretch">
+        {{-- ACCIONES RÁPIDAS --}}
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 pt-4">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-bolt text-warning me-2"></i>Acciones Rápidas</h5>
+                </div>
+                <div class="card-body d-flex flex-column gap-3 px-4 pb-4">
+                    <a href="{{ route('rrhh.personal.gestion_arc') }}" class="btn py-3 rounded-3 fw-bold shadow-sm text-white" style="background-color: #6610f2; border: none;">
+                        <i class="fas fa-layer-group me-2"></i> Selector de Nominas
+                    </a>
 
-<div class="row g-4 row-cols-1 row-cols-lg-3 align-items-stretch">
+                    <a href="{{ route('rrhh.personal.index') }}" class="btn btn-primary py-3 rounded-3 fw-semibold shadow-sm">
+                        <i class="fas fa-search me-2"></i> Buscar para ARC (Individual)
+                    </a>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-4 h-100">
-            <div class="card-header bg-white border-0 pt-4">
-                <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-bolt text-warning me-2"></i>Acciones Rápidas</h5>
-            </div>
-            <div class="card-body d-flex flex-column gap-3 px-4 pb-4">
-                <a href="{{ route('rrhh.personal.index') }}" class="btn btn-primary py-3 rounded-3 fw-semibold shadow-sm">
-                    <i class="fas fa-search me-2"></i> Buscar para ARC
-                </a>
-                <a href="{{ route('rrhh.personal.pagos.index') }}" class="btn btn-outline-dark py-3 rounded-3 fw-semibold">
-                    <i class="fas fa-file-invoice me-2"></i> Gestionar Recibos
-                </a>
-                <a href="{{ route('rrhh.personal.constancias.index') }}" class="btn btn-success py-3 rounded-3 text-white fw-semibold shadow-sm">
-                    <i class="fas fa-file-signature me-2"></i> Generar Constancia
-                </a>
-                <a href="{{ route('rrhh.constancias.validar') }}" class="btn btn-outline-primary py-3 rounded-3 fw-semibold">
-                    <i class="fas fa-clipboard-check me-2"></i> Validar Emitidas
-                </a>
+                    <a href="{{ route('rrhh.personal.pagos.index') }}" class="btn btn-outline-dark py-3 rounded-3 fw-semibold">
+                        <i class="fas fa-file-invoice me-2"></i> Gestionar Recibos
+                    </a>
+
+                    <a href="{{ route('rrhh.personal.constancias.index') }}" class="btn btn-success py-3 rounded-3 text-white fw-semibold shadow-sm">
+                        <i class="fas fa-file-signature me-2"></i> Generar Constancia
+                    </a>
+
+                    <a href="{{ route('rrhh.constancias.validar') }}" class="btn btn-outline-primary py-3 rounded-3 fw-semibold">
+                        <i class="fas fa-clipboard-check me-2"></i> Validar Emitidas
+                    </a>
+                </div>
             </div>
         </div>
-    </div>
 
-    <div class="col">
-        <div class="card border-0 shadow-sm rounded-4 h-100">
-            <div class="card-header bg-white border-0 pt-4">
-                <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-balance-scale text-primary me-2"></i>Beneficios de Ley</h5>
-            </div>
-            <div class="card-body d-flex flex-column justify-content-between px-4 pb-4 text-center">
-                <div class="py-2">
-                    <div class="bg-warning-subtle rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
-                        <i class="fas fa-utensils text-warning fs-3"></i>
+        {{-- BENEFICIOS DE LEY --}}
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 pt-4">
+                    <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-balance-scale text-primary me-2"></i>Beneficios de Ley</h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between px-4 pb-4 text-center">
+                    <div class="py-2">
+                        <div class="bg-warning-subtle rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
+                            <i class="fas fa-utensils text-warning fs-3"></i>
+                        </div>
+                        <h6 class="fw-bold mb-1">Cestaticket</h6>
+                        <p class="text-muted small">
+                            Monto actual: <strong>Bs. {{ number_format($montoCestaticket, 2, ',', '.') }}</strong>
+                        </p>
+                        <span class="badge bg-light text-dark border fw-normal text-wrap">Última actualización: {{ date('d/m/Y') }}</span>
                     </div>
-                    <h6 class="fw-bold mb-1">Cestaticket</h6>
-                    <p class="text-muted small">
-                    Monto actual: <strong>Bs. {{ number_format($montoCestaticket, 2, ',', '.') }}</strong>
-                </p>
-                    <span class="badge bg-light text-dark border fw-normal text-wrap">Última actualización: {{ date('d/m/Y') }}</span>
+                    <a href="{{ route('rrhh.cestaticket.index') }}" class="btn btn-warning w-100 py-3 rounded-3 fw-bold mt-3 shadow-sm">
+                        <i class="fas fa-edit me-1"></i> Actualizar Monto
+                    </a>
                 </div>
-                <a href="{{ route('rrhh.cestaticket.index') }}" class="btn btn-warning w-100 py-3 rounded-3 fw-bold mt-3 shadow-sm">
-                <i class="fas fa-edit me-1"></i> Actualizar Monto
-            </a>
             </div>
         </div>
-    </div>
 
-  <div class="col">
-    <div class="card border-0 shadow-sm rounded-4 h-100">
-        <div class="card-header bg-white border-0 pt-4">
-            <h5 class="fw-bold mb-0 text-dark">Últimos Ingresos</h5>
-        </div>
-        <div class="card-body px-0 d-flex flex-column">
-            @if(isset($ultimosIngresos) && count($ultimosIngresos) > 0)
-                <div class="list-group list-group-flush">
-                    @foreach($ultimosIngresos as $ingreso)
-                        <div class="list-group-item border-0 px-4 py-3">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div style="max-width: 70%;">
-                                     <p class="mb-0 fw-bold small text-uppercase text-truncate">
-                                        {{ $ingreso->nomper }} {{ $ingreso->apeper }}
-                                     </p>
-                                    <small class="text-muted">C.I. {{ number_format($ingreso->cedper, 0, '', '.') }}</small>
+        {{-- ÚLTIMOS INGRESOS --}}
+        <div class="col">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 pt-4">
+                    <h5 class="fw-bold mb-0 text-dark">Últimos Ingresos</h5>
+                </div>
+                <div class="card-body px-0 d-flex flex-column">
+                    @if(isset($ultimosIngresos) && count($ultimosIngresos) > 0)
+                        <div class="list-group list-group-flush">
+                            @foreach($ultimosIngresos as $ingreso)
+                                <div class="list-group-item border-0 px-4 py-3 hover-bg">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div style="max-width: 70%;">
+                                             <p class="mb-0 fw-bold small text-uppercase text-truncate text-dark">
+                                                {{ $ingreso->nomper }} {{ $ingreso->apeper }}
+                                             </p>
+                                            <small class="text-muted">C.I. {{ number_format($ingreso->cedper, 0, '', '.') }}</small>
+                                        </div>
+                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                            {{ \Carbon\Carbon::parse($ingreso->fecingper)->format('d/m/y') }}
+                                        </span>
+                                    </div>
                                 </div>
-                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
-                        {{ \Carbon\Carbon::parse($ingreso->fecingper)->format('d/m/y') }}
-                    </span>
-                 </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="d-flex flex-column align-items-center justify-content-center h-100 py-5 text-center">
+                            <i class="fas fa-users-slash text-muted mb-2 fs-2"></i>
+                            <p class="text-muted small">No se encontraron registros recientes.</p>
+                        </div>
+                    @endif
+                </div>
             </div>
-                @endforeach
-                </div>
-            @else
-                <div class="d-flex flex-column align-items-center justify-content-center h-100 py-5">
-                    <i class="fas fa-users-slash text-muted mb-2 fs-2"></i>
-                    <p class="text-muted small">No se encontraron registros recientes.</p>
-                </div>
-            @endif
         </div>
     </div>
 </div>
 
 <style>
-    /* Efecto para que todos los botones de acción se vean iguales */
+    .hover-bg:hover { background-color: #f8fafc; }
     .transition-btn {
         transition: all 0.2s;
         display: flex;
         align-items: center;
         justify-content: center;
     }
-    .transition-btn:hover {
-        transform: scale(1.02);
+    .transition-btn:hover { transform: scale(1.02); }
+
+    /* Estilos específicos para el widget de cumpleaños */
+    .bounce-animation { animation: bounce 2s infinite; }
+    @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% {transform: translateY(0);}
+        40% {transform: translateY(-5px);}
+        60% {transform: translateY(-3px);}
     }
-    /* Mantiene la altura perfecta en pantallas grandes */
+
     @media (min-width: 992px) {
         .h-100 { height: 100% !important; }
     }

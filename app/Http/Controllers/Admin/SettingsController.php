@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Exception;
 use Illuminate\Support\Facades\Storage;
+use App\Models\SecurityLog;
 
 
 class SettingsController extends Controller
@@ -55,115 +56,148 @@ class SettingsController extends Controller
     Setting::updateOrCreate(['key' => 'app_name'], ['value' => $request->app_name]);
     return redirect()->back()->with('success', 'Configuraciones actualizadas con éxito.');
 }
-
 public function syncSigesp(Request $request)
 {
     // 1. CONFIGURACIÓN DINÁMICA DE CONEXIÓN
-    // Obtenemos los valores desde la tabla settings
     $config = DB::table('settings')->pluck('value', 'key');
 
-    // Validamos que existan los datos mínimos para conectar
     if (!isset($config['db_sigesp_host'], $config['db_sigesp_name'], $config['db_sigesp_user'])) {
         return redirect()->back()->with('error', 'Faltan parámetros de configuración de SIGESP.');
     }
 
     try {
-        // Configuramos la conexión 'sigesp' al vuelo antes de usarla
         config(['database.connections.sigesp' => [
             'driver'   => 'pgsql',
             'host'     => $config['db_sigesp_host'],
             'port'     => $config['db_sigesp_port'] ?? '5432',
             'database' => $config['db_sigesp_name'],
             'username' => $config['db_sigesp_user'],
-            // Desencriptamos la contraseña guardada
             'password' => isset($config['db_sigesp_pass']) ? decrypt($config['db_sigesp_pass']) : '',
             'charset'  => 'utf8',
             'prefix'   => '',
             'schema'   => 'public',
             'sslmode'  => 'prefer',
+            'connect_timeout' => 15,
         ]]);
 
-        // Limpiar cualquier conexión previa para asegurar que use la nueva configuración
         DB::purge('sigesp');
 
-        // --- INICIO DE LÓGICA DE SINCRONIZACIÓN ---
-        set_time_limit(0);
+        // Optimización de servidor
+        set_time_limit(0); 
         ini_set('memory_limit', '1024M');
 
-        $reporte = [];
+        return DB::transaction(function () use ($config) {
+            $reporte = [];
 
-        // 1. EMPRESAS
-        $empresas = DB::connection('sigesp')->table('public.sigesp_empresa')->get();
-        foreach ($empresas as $e) {
-            DB::table('sigesp_empresa')->updateOrInsert(
-                ['codemp' => trim($e->codemp)],
-                ['nombre' => trim($e->nombre ?? $e->nomemp), 'rif' => trim($e->rif ?? $e->rifemp), 'updated_at' => now()]
-            );
-        }
-        $reporte[] = count($empresas) . " empresas";
+            // 1. EMPRESAS
+            $empresas = DB::connection('sigesp')->table('public.sigesp_empresa')->get();
+            foreach ($empresas as $e) {
+                DB::table('sigesp_empresa')->updateOrInsert(
+                    ['codemp' => trim($e->codemp)],
+                    [
+                        'nombre' => trim($e->nombre ?? $e->nomemp), 
+                        'rif' => trim($e->rif ?? $e->rifemp), 
+                        'updated_at' => now()
+                    ]
+                );
+            }
+            $reporte[] = count($empresas) . " empresas";
 
-        // 2. PERSONAL
-        $totalPersonal = 0;
-        DB::connection('sigesp')->table('public.sno_personal')->orderBy('codper', 'asc')
-            ->chunk(500, function ($personal) use (&$totalPersonal) {
-                foreach ($personal as $p) {
-                    DB::table('sno_personal')->updateOrInsert(
-                        ['codemp' => trim($p->codemp), 'codper' => trim($p->codper)],
-                        [
-                            'cedper' => trim($p->cedper), 'nomper' => trim($p->nomper), 'apeper' => trim($p->apeper),
-                            'coreleper' => trim($p->coreleper), 'fecingper' => ($p->fecingper != '1900-01-01' ? $p->fecingper : null),
+            // 2. PERSONAL
+            $totalPersonal = 0;
+            DB::connection('sigesp')->table('public.sno_personal')
+                ->select('codemp', 'codper', 'cedper', 'nomper', 'apeper', 'coreleper', 'fecingper')
+                ->orderBy('codper', 'asc')
+                ->chunk(1000, function ($personal) use (&$totalPersonal) {
+                    $data = [];
+                    foreach ($personal as $p) {
+                        $data[] = [
+                            'codemp' => trim($p->codemp),
+                            'codper' => trim($p->codper),
+                            'cedper' => trim($p->cedper),
+                            'nomper' => trim($p->nomper),
+                            'apeper' => trim($p->apeper),
+                            'coreleper' => trim($p->coreleper),
+                            'fecingper' => ($p->fecingper != '1900-01-01' ? $p->fecingper : null),
                             'updated_at' => now()
-                        ]
-                    );
-                    $totalPersonal++;
-                }
-            });
-        $reporte[] = "$totalPersonal trabajadores";
+                        ];
+                    }
+                    DB::table('sno_personal')->upsert($data, ['codemp', 'codper'], ['cedper', 'nomper', 'apeper', 'coreleper', 'fecingper', 'updated_at']);
+                    $totalPersonal += count($data);
+                });
+            $reporte[] = "$totalPersonal trabajadores";
 
-        // 3. NÓMINAS
-        $nominas = DB::connection('sigesp')->table('public.sno_nomina')->get();
-        foreach ($nominas as $n) {
-            DB::table('sno_nomina')->updateOrInsert(
-                ['codemp' => trim($n->codemp), 'codnom' => trim($n->codnom)],
-                ['desnom' => trim($n->desnom), 'updated_at' => now()]
+            // 3. NÓMINAS
+            $nominas = DB::connection('sigesp')->table('public.sno_nomina')->get();
+            foreach ($nominas as $n) {
+                DB::table('sno_nomina')->updateOrInsert(
+                    ['codemp' => trim($n->codemp), 'codnom' => trim($n->codnom)],
+                    ['desnom' => trim($n->desnom), 'updated_at' => now()]
+                );
+            }
+            $reporte[] = count($nominas) . " nóminas";
+
+            // 4. PERIODOS (Usa codperi según tu primer log)
+            $periodos = DB::connection('sigesp')->table('public.sno_hperiodo')
+                ->select('codemp', 'codnom', 'codperi', 'fecdesper', 'fechasper', 'cerper')
+                ->get();
+            foreach ($periodos as $per) {
+                DB::table('sno_hperiodo')->updateOrInsert(
+                    [
+                        'codemp' => trim($per->codemp), 
+                        'codnom' => trim($per->codnom), 
+                        'codperi' => trim($per->codperi) 
+                    ],
+                    [
+                        'fecdesper' => $per->fecdesper, 
+                        'fechasper' => $per->fechasper, 
+                        'cerper' => $per->cerper, 
+                        'updated_at' => now()
+                    ]
+                );
+            }
+            $reporte[] = count($periodos) . " periodos";
+
+            // 5. HISTORIAL PERSONAL NÓMINA (Usa codperid según tu segundo log)
+            $totalHPN = 0;
+            DB::connection('sigesp')->table('public.sno_hpersonalnomina')
+                ->select('codemp', 'codnom', 'codperi', 'codper', 'codtab')
+                ->orderBy('codperi', 'desc')
+                ->chunk(1000, function ($registros) use (&$totalHPN) {
+                    foreach ($registros as $reg) {
+                        DB::table('sno_hpersonalnomina')->updateOrInsert(
+                            [
+                                'codemp' => trim($reg->codemp), 
+                                'codnom' => trim($reg->codnom),
+                                'codperid' => trim($reg->codperi), // Ajustado: Tu tabla local pide codperid
+                                'codper' => trim($reg->codper)
+                            ],
+                            [
+                                'codtab' => trim($reg->codtab ?? '0000'), 
+                                'updated_at' => now()
+                            ]
+                        );
+                        $totalHPN++;
+                    }
+                });
+            $reporte[] = "$totalHPN asignaciones";
+
+            // 6. CIERRE Y LOGS
+            if (function_exists('record_security_event')) {
+                record_security_event('Sincronización SIGESP', 'Media', ['detalle' => implode(' | ', $reporte)]);
+            }
+
+            DB::table('settings')->updateOrInsert(
+                ['key' => 'sigesp_last_sync'], 
+                ['value' => now()->format('d/m/Y h:i A')]
             );
-        }
-        $reporte[] = count($nominas) . " nóminas";
 
-        // 4. PERIODOS
-        $periodos = DB::connection('sigesp')->table('public.sno_hperiodo')->select('codemp', 'codnom', 'codperi', 'fecdesper', 'fechasper', 'cerper')->get();
-        foreach ($periodos as $per) {
-            DB::table('sno_hperiodo')->updateOrInsert(
-                ['codemp' => trim($per->codemp), 'codnom' => trim($per->codnom), 'codperid' => trim($per->codperi)],
-                ['fecdesper' => $per->fecdesper, 'fechasper' => $per->fechasper, 'cerper' => $per->cerper, 'updated_at' => now()]
-            );
-        }
-        $reporte[] = count($periodos) . " periodos";
-
-        // 5. HISTORIAL PERSONAL NÓMINA
-        $totalHPN = 0;
-        DB::connection('sigesp')->table('public.sno_hpersonalnomina')->orderBy('codperi', 'desc')
-            ->chunk(1000, function ($registros) use (&$totalHPN) {
-                foreach ($registros as $reg) {
-                    DB::table('sno_hpersonalnomina')->updateOrInsert(
-                        [
-                            'codemp' => trim($reg->codemp), 'codnom' => trim($reg->codnom),
-                            'codperid' => trim($reg->codperi), 'codper' => trim($reg->codper)
-                        ],
-                        ['codtab' => trim($reg->codtab ?? '0000'), 'updated_at' => now()]
-                    );
-                    $totalHPN++;
-                }
-            });
-        $reporte[] = "$totalHPN asignaciones";
-
-        Setting::updateOrCreate(['key' => 'sigesp_last_sync'], ['value' => now()->format('d/m/Y h:i A')]);
-
-        return redirect()->back()->with('success', "¡Sincronización Completa! " . implode(' | ', $reporte));
+            return redirect()->back()->with('success', "¡Sincronización Exitosa! " . implode(' | ', $reporte));
+        });
 
     } catch (\Exception $e) {
-        Log::error("Error en sincronización SIGESP: " . $e->getMessage());
-        return redirect()->back()->with('error', 'Error en la conexión o proceso: ' . $e->getMessage());
+        Log::error("Error Fatal en Sincronización SIGESP: " . $e->getMessage());
+        return redirect()->back()->with('error', 'Error en el proceso: ' . $e->getMessage());
     }
 }
     public function sigesp()
@@ -240,13 +274,17 @@ public function updateMailSettings(Request $request)
 }
 
 public function securityIndex()
-    {
-        // Esta ruta corresponde a: /admin/security
-      $config = DB::table('settings')->pluck('value', 'key');
-        return view('admin.security.index', compact('config'));
-    }
+{
+    // 1. Recuperar los logs (esto ya funciona)
+    $eventos = \App\Models\SecurityLog::latest()->take(15)->get();
 
+    // 2. Recuperar la configuración desde la tabla 'settings'
+    // Pluck crea un array asociativo ['key' => 'value']
+    $config = DB::table('settings')->pluck('value', 'key')->toArray();
 
+    // 3. Pasamos los datos a la vista
+    return view('admin.security.index', compact('config', 'eventos'));
+}
     public function policiesIndex()
     {
         // Obtenemos los valores actuales de la tabla settings (key-value)
@@ -335,10 +373,21 @@ public function toggleMaintenance()
     $newStatus = ($currentStatus == '1') ? '0' : '1';
 
     // 3. Guardar en la base de datos
-   DB::table('settings')->updateOrInsert(
+    DB::table('settings')->updateOrInsert(
         ['key' => 'site_offline'],
         ['value' => $newStatus, 'updated_at' => now()]
     );
+
+    // --- REGISTRO EN BITÁCORA ---
+    $evento = ($newStatus == '1') ? 'Activación de Modo Mantenimiento' : 'Desactivación de Modo Mantenimiento';
+    $gravedad = ($newStatus == '1') ? 'Alta' : 'Media';
+
+    record_security_event($evento, $gravedad, [
+        'estado_anterior' => $currentStatus,
+        'estado_nuevo' => $newStatus,
+        'modulo' => 'Disponibilidad'
+    ]);
+    // ----------------------------
 
     $mensaje = ($newStatus == '1') ? 'El sistema ahora está en mantenimiento.' : 'El sistema vuelve a estar en línea.';
 
@@ -347,11 +396,16 @@ public function toggleMaintenance()
 
 public function generalIndex()
 {
-    // Solo traemos configuraciones, NADA de usuarios aquí
     $config = DB::table('settings')->pluck('value', 'key')->toArray();
 
+    // Defaults para evitar errores de índice
     if (!isset($config['monto_cestaticket'])) {
         $config['monto_cestaticket'] = '0.00';
+    }
+
+    // Opcional: Asegurar que logo_path sea null si no existe
+    if (!isset($config['logo_path'])) {
+        $config['logo_path'] = null;
     }
 
     return view('admin.settings.general', compact('config'));
@@ -366,7 +420,7 @@ public function updateGeneral(Request $request)
         'institucion_siglas'    => 'required|string|max:50',
         'institucion_direccion' => 'nullable|string|max:1000',
         'monto_cestaticket'     => 'required|numeric|min:0',
-        
+
         // Validaciones para bases de datos
         'db_local_host'         => 'required|string',
         'db_local_name'         => 'required|string',
@@ -375,7 +429,7 @@ public function updateGeneral(Request $request)
         'db_sigesp_port'        => 'required|numeric',
         'db_sigesp_name'        => 'required|string',
         'db_sigesp_user'        => 'required|string',
-        
+
         // Logo
         'logo_archivo'          => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
     ];
@@ -387,7 +441,7 @@ public function updateGeneral(Request $request)
 
         // 2. Lista de campos de texto simple
         $fields = [
-            'institucion_nombre', 'institucion_rif', 'institucion_siglas', 
+            'institucion_nombre', 'institucion_rif', 'institucion_siglas',
             'institucion_direccion', 'monto_cestaticket',
             'db_local_host', 'db_local_name', 'db_local_user',
             'db_sigesp_host', 'db_sigesp_port', 'db_sigesp_name', 'db_sigesp_user'
@@ -420,14 +474,14 @@ public function updateGeneral(Request $request)
         if ($request->hasFile('logo_archivo')) {
             // Obtener el path del logo anterior para borrarlo
             $oldPath = DB::table('settings')->where('key', 'logo_path')->value('value');
-            
+
             if ($oldPath && Storage::disk('public')->exists($oldPath)) {
                 Storage::disk('public')->delete($oldPath);
             }
 
             // Guardar nuevo logo en storage/app/public/branding
             $newPath = $request->file('logo_archivo')->store('branding', 'public');
-            
+
             DB::table('settings')->updateOrInsert(
                 ['key' => 'logo_path'],
                 ['value' => $newPath, 'updated_at' => now()]
@@ -456,7 +510,7 @@ public function testSigespConnection(Request $request)
         }
 
         config(['database.connections.temp_sigesp' => [
-            'driver'   => 'pgsql', 
+            'driver'   => 'pgsql',
             'host'     => $request->db_sigesp_host,
             'port'     => $request->db_sigesp_port ?? '5432',
             'database' => $request->db_sigesp_name,
@@ -530,7 +584,7 @@ public function updateCestaTicket(Request $request)
 public function testLocalConnection(Request $request)
 {
     try {
-        // Si el usuario no escribió una contraseña nueva en el input, 
+        // Si el usuario no escribió una contraseña nueva en el input,
         // buscamos la que ya tenemos cifrada en la base de datos.
         $password = $request->db_local_pass;
         if (empty($password)) {
@@ -555,15 +609,205 @@ public function testLocalConnection(Request $request)
         DB::connection('temp_local')->getPdo();
 
         return response()->json([
-            'success' => true, 
+            'success' => true,
             'message' => '¡Conexión Local Establecida con Éxito!'
         ]);
 
     } catch (\Exception $e) {
         return response()->json([
-            'success' => false, 
+            'success' => false,
             'message' => 'Error de conexión local: ' . $e->getMessage()
         ]);
     }
 }
+
+
+public function updateRole(Request $request, User $user)
+{
+    // 1. Validación estricta
+    $request->validate([
+        'rol_id' => 'required|in:1,2'
+    ]);
+
+    // 2. Seguridad: Evitar que el administrador actual se quite sus propios permisos
+    if ($user->id === Auth::id() && $request->rol_id != 1) {
+        return back()->withErrors(['error' => 'No puedes revocar tus propios permisos de administrador.']);
+    }
+
+    try {
+        $rolAnterior = ($user->rol_id == 1) ? 'Administrador' : 'Empleado';
+        $rolNuevo = ($request->rol_id == 1) ? 'Administrador' : 'Empleado';
+
+        // 3. Ejecutar el cambio
+        $user->rol_id = $request->rol_id;
+        $user->save();
+
+        // 4. REFRESCAR LA SESIÓN (Crucial para que vea el Dashboard de una vez)
+        // Si el admin se cambia el rol a sí mismo, actualizamos el objeto Auth
+        if ($user->id === Auth::id()) {
+            Auth::setUser($user);
+            // Esto asegura que el middleware CheckSessionId vea los datos frescos
+            session(['user_role' => $user->rol_id]); 
+        }
+
+        // 5. Registrar en la Bitácora de Seguridad (Sigh2025)
+        record_security_event(
+            'Cambio de Privilegios', 
+            'Alta', 
+            [
+                'objetivo' => $user->cedula,
+                'nombre' => $user->name,
+                'cambio' => "$rolAnterior -> $rolNuevo"
+            ]
+        );
+
+        // Si el usuario se cambió a sí mismo a Admin, lo mandamos directo al dashboard
+        if ($user->id === Auth::id() && $user->rol_id == 1) {
+            return redirect()->route('admin.dashboard')->with('success', 'Tus permisos han sido actualizados.');
+        }
+
+        return back()->with('success', "Permisos de {$user->name} actualizados a {$rolNuevo} correctamente.");
+
+    } catch (\Exception $e) {
+        return back()->withErrors(['error' => 'Ocurrió un error al intentar cambiar el rol: ' . $e->getMessage()]);
+    }
+}
+
+public function nominas(Request $request)
+{
+    // 1. Detectar el año (Prioridad: URL > Año Actual)
+    $anoSeleccionado = $request->input('ano', date('Y'));
+
+    try {
+        // 2. RECUPERACIÓN DE DATOS LOCALES (arc_parametros)
+        $config = DB::table('arc_parametros')->where('anio', (int)$anoSeleccionado)->first();
+
+        $nominasTildadas = [];
+        $conceptosTildados = [];
+
+        if ($config) {
+            // Decodificamos y limpiamos espacios de los datos guardados
+            $decNom = is_string($config->nominas) ? json_decode($config->nominas, true) : $config->nominas;
+            $decCon = is_string($config->conceptos) ? json_decode($config->conceptos, true) : $config->conceptos;
+            
+            // IMPORTANTE: Limpiamos cada elemento para que la comparación sea exacta
+            $nominasTildadas = array_map('trim', (array)($decNom ?? []));
+            $conceptosTildados = array_map('trim', (array)($decCon ?? []));
+        }
+
+        // 3. CONSULTA SIGESP: Nóminas con movimiento en el año
+        $nominas = DB::connection('sigesp')->table('sno_nomina as n')
+            ->select('n.codnom', 'n.desnom')
+            ->whereIn('n.codnom', function($query) use ($anoSeleccionado) {
+                $query->select('codnom')->from('sno_periodo')->whereYear('fecdesper', $anoSeleccionado)
+                ->union($query->newQuery()->select('codnom')->from('sno_hperiodo')->whereYear('fecdesper', $anoSeleccionado));
+            })
+            ->orderBy('n.codnom', 'ASC')
+            ->get();
+
+        $codigosFiltro = $nominas->pluck('codnom')->toArray();
+
+        // 4. CONSULTA SIGESP: Conceptos con limpieza de duplicados y ORDENAMIENTO LÓGICO
+        $conceptosRaw = DB::connection('sigesp')->table('sno_concepto as c')
+            ->select('c.codconc', DB::raw("MAX(c.nomcon) as nomcon"), DB::raw("TRIM(c.sigcon) as sigcon"))
+            ->whereIn(DB::raw("TRIM(c.sigcon)"), ['A', 'D', 'P'])
+            ->whereExists(function ($query) use ($codigosFiltro, $anoSeleccionado) {
+                $query->select(DB::raw(1))
+                    ->from('sno_hsalida as hs')
+                    ->join('sno_hperiodo as hp', function($join) {
+                        $join->on('hs.codnom', '=', 'hp.codnom')->on('hs.codperi', '=', 'hp.codperi');
+                    })
+                    ->whereColumn('hs.codconc', 'c.codconc')
+                    ->whereIn('hs.codnom', $codigosFiltro)
+                    ->whereYear('hp.fecdesper', $anoSeleccionado);
+            })
+            ->groupBy('c.codconc', 'c.sigcon')
+            ->get();
+
+        // Aplicamos el ordenamiento y la unicidad basada en CÓDIGO + TIPO
+        $conceptos = $conceptosRaw->unique(function ($item) {
+                // Esto evita que una Asignación borre a una Patronal con el mismo código
+                return trim($item->codconc) . '|' . trim($item->sigcon);
+            })
+            ->sort(function($a, $b) {
+                $prioridad = ['A' => 1, 'D' => 2, 'P' => 3];
+                $pA = $prioridad[trim($a->sigcon)] ?? 9;
+                $pB = $prioridad[trim($b->sigcon)] ?? 9;
+
+                if ($pA === $pB) {
+                    // Ordenamos por código si son del mismo tipo
+                    return strcmp(trim($a->codconc), trim($b->codconc));
+                }
+                return $pA <=> $pB;
+            })
+            ->values();
+
+        // 5. INFO ADICIONAL
+        $lastSync = $config && $config->updated_at 
+                    ? \Carbon\Carbon::parse($config->updated_at)->format('d/m/Y h:i A') 
+                    : 'Sin datos';
+
+        $periodosAbiertos = DB::connection('sigesp')->table('sno_periodo')
+                            ->where('cerper', 0)
+                            ->count();
+
+        return view('admin.settings.nominas', compact(
+            'anoSeleccionado', 'nominas', 'conceptos', 
+            'nominasTildadas', 'conceptosTildados', 
+            'lastSync', 'periodosAbiertos'
+        ));
+
+    } catch (\Exception $e) {
+        return redirect()->back()->with('error', 'Error en SIGESP: ' . $e->getMessage());
+    }
+}
+
+public function storeParametrosArc(Request $request)
+{
+    $anio = $request->input('anio');
+    
+    $nominasSeleccionadas = array_values(array_unique(array_filter($request->input('nominas', []))));
+    $conceptosRaw = $request->input('conceptos', []);
+    
+    $soloCodigos = [];
+    $mapaContable = ['asignaciones' => [], 'deducciones' => [], 'patronales' => []];
+
+    foreach ($conceptosRaw as $item) {
+        if (str_contains($item, '|')) {
+            list($codigo, $tipo) = explode('|', $item);
+            
+            // Limpiamos espacios
+            $codigoLimpio = trim($codigo);
+            $soloCodigos[] = $codigoLimpio;
+            
+            if ($tipo === 'A') $mapaContable['asignaciones'][] = $codigoLimpio;
+            if ($tipo === 'D') $mapaContable['deducciones'][] = $codigoLimpio;
+            if ($tipo === 'P') $mapaContable['patronales'][] = $codigoLimpio;
+        }
+    }
+
+    // Eliminamos duplicados de los códigos guardados por seguridad
+    $soloCodigos = array_values(array_unique($soloCodigos));
+
+    DB::table('arc_parametros')->updateOrInsert(
+        // Aseguramos que el año se guarde como string para que el 'where' funcione luego
+        ['anio' => (string) $anio], 
+        [
+            'nominas'       => json_encode($nominasSeleccionadas),
+            'conceptos'     => json_encode($soloCodigos),
+            'clasificacion' => json_encode([
+                'configurado_en' => now()->format('d/m/Y H:i'),
+                'total_nominas'  => count($nominasSeleccionadas),
+                'total_conceptos'=> count($soloCodigos),
+                'mapa'           => $mapaContable
+            ]),
+            'updated_at'    => now()
+        ]
+    );
+
+   return redirect()->action([SettingsController::class, 'nominas'], ['ano' => $request->input('anio')])
+                     ->with('success', 'Guardado correctamente');
+}
+
+
 }

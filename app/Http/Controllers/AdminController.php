@@ -7,6 +7,12 @@ use Illuminate\Http\Request;
 use Spatie\Permission\Models\Role;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\ReporteDescargasExport;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Models\SecurityLog;
+use Illuminate\Support\Facades\Artisan;
 
 class AdminController extends Controller
 {
@@ -16,14 +22,67 @@ class AdminController extends Controller
         $this->middleware('role:admin');
     }
 
-    public function dashboard()
-    {
-        $totalUsers = User::count();
-        $totalEmployees = User::role('empleado')->count();
-        $recentUsers = User::with('roles')->latest()->take(5)->get();
+public function dashboard(Request $request)
+{
+    $fechaInicio = $request->get('fecha_inicio', Carbon::now()->startOfMonth()->format('Y-m-d'));
+    $fechaFin = $request->get('fecha_fin', Carbon::now()->format('Y-m-d'));
 
-        return view('admin.dashboard', compact('totalUsers', 'totalEmployees', 'recentUsers'));
+    $start = Carbon::parse($fechaInicio)->startOfDay();
+    $end = Carbon::parse($fechaFin)->endOfDay();
+
+    // 1. Contadores basados en la tabla de auditoría
+    $totalPeriodo = DB::table('reporte_descargas')
+                ->whereBetween('created_at', [$start, $end])
+                ->count();
+
+    // 2. Gráfico de Torta (ahora leerá ARC, Recibos y Constancias de la misma tabla)
+    $statsPie = DB::table('reporte_descargas')
+                ->select('tipo_reporte', DB::raw('count(*) as total'))
+                ->whereBetween('created_at', [$start, $end])
+                ->groupBy('tipo_reporte')
+                ->get();
+
+    $labelsPie = $statsPie->pluck('tipo_reporte')->toArray();
+    $datosPie = $statsPie->pluck('total')->toArray();
+
+    // 3. Actividad Reciente
+    $ultimasDescargas = DB::table('reporte_descargas')
+                ->whereBetween('created_at', [$start, $end])
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+
+    // 4. Gráficas de Barras Mensuales
+    $anio = $start->year;
+    $arcStats = $this->getMonthlyStats('Planilla ARC', $anio);
+    $reciboStats = $this->getMonthlyStats('Recibo de Pago', $anio);
+    $constanciaStats = $this->getMonthlyStats('Constancia Trabajo', $anio);
+
+    return view('admin.dashboard', compact(
+        'fechaInicio', 'fechaFin', 'labelsPie', 'datosPie',
+        'ultimasDescargas', 'arcStats', 'reciboStats', 'constanciaStats',
+        'totalPeriodo'
+    ));
+}
+/**
+ * Función auxiliar para obtener estadísticas mensuales para Chart.js
+ */
+private function getMonthlyStats($tipo, $anio)
+{
+    $stats = DB::table('constancias_generadas')
+        ->select(DB::raw('EXTRACT(MONTH FROM created_at) as mes'), DB::raw('count(*) as total'))
+        ->where('tipo_reporte', $tipo)
+        ->whereYear('created_at', $anio)
+        ->groupBy('mes')
+        ->pluck('total', 'mes')
+        ->toArray();
+
+    $data = [];
+    for ($i = 1; $i <= 12; $i++) {
+        $data[] = $stats[$i] ?? 0;
     }
+    return $data;
+}
 
   public function Graficas()
 {
@@ -60,27 +119,108 @@ class AdminController extends Controller
 
     return view('admin.dashboard', compact('labelsPie', 'datosPie', 'totalHoy', 'usuariosActivos', 'ultimasDescargas'));
 }
-    public function crearEmpleado(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:8|confirmed',
-        ]);
+    // public function crearEmpleado(Request $request)
+    // {
+    //     $request->validate([
+    //         'name' => 'required|string|max:255',
+    //         'email' => 'required|email|unique:users',
+    //         'password' => 'required|min:8|confirmed',
+    //     ]);
 
-        $empleado = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => bcrypt($request->password),
-        ]);
+    //     $empleado = User::create([
+    //         'name' => $request->name,
+    //         'email' => $request->email,
+    //         'password' => bcrypt($request->password),
+    //     ]);
 
-        $empleado->assignRole('empleado');
+    //     $empleado->assignRole('empleado');
 
-        return redirect()->route('admin.empleados')->with('success', 'Empleado creado exitosamente');
+    //     return redirect()->route('admin.empleados')->with('success', 'Empleado creado exitosamente');
+    // }
+
+    public function exportExcel(Request $request)
+{
+    // Capturamos las fechas que vienen del link del Dashboard
+    $fechaInicio = $request->get('fecha_inicio');
+    $fechaFin = $request->get('fecha_fin');
+
+    // Validación básica por si acaso
+    if (!$fechaInicio || !$fechaFin) {
+        return back()->with('error', 'Debe seleccionar un rango de fechas para exportar.');
     }
 
-    public function reportes()
-    {
-        return view('admin.reportes');
+    $nombreArchivo = "Reporte_Sigh2025_" . $fechaInicio . "_al_" . $fechaFin . ".xlsx";
+
+    return Excel::download(new ReporteDescargasExport($fechaInicio, $fechaFin), $nombreArchivo);
+}
+
+public function downloadLogs()
+{
+    $fileName = 'log_seguridad_sigh2025_' . date('Y-m-d_H-i') . '.csv';
+    $headers = [
+        "Content-type"        => "text/csv",
+        "Content-Disposition" => "attachment; filename=$fileName",
+        "Pragma"              => "no-cache",
+        "Cache-Control"       => "must-revalidate, post-check=0, pre-check=0",
+        "Expires"             => "0"
+    ];
+
+    $columnas = ['ID', 'Evento', 'Usuario', 'IP', 'Gravedad', 'Fecha', 'Detalles'];
+
+    $callback = function() use ($columnas) {
+        $file = fopen('php://output', 'w');
+        fputcsv($file, $columnas);
+
+        // Usamos cursor() para no saturar la memoria RAM si hay muchos logs
+        foreach (SecurityLog::orderBy('created_at', 'desc')->cursor() as $log) {
+            fputcsv($file, [
+                $log->id,
+                $log->event,
+                $log->user_identifier,
+                $log->ip_address,
+                $log->severity,
+                $log->created_at,
+                json_encode($log->details) // Convertimos el array de detalles a texto
+            ]);
+        }
+        fclose($file);
+    };
+
+    // Registramos que alguien descargó la auditoría
+    record_security_event('Descarga de Log Completo', 'Baja', ['formato' => 'CSV']);
+
+    return response()->stream($callback, 200, $headers);
+}
+
+public function optimizeSystem()
+{
+    try {
+        // En PostgreSQL, el comando equivalente a OPTIMIZE es VACUUM
+        // ANALYZE actualiza las estadísticas para que las consultas sean más rápidas
+        DB::statement('VACUUM ANALYZE');
+
+        record_security_event('Optimización de Base de Datos', 'Baja', ['motor' => 'PostgreSQL VACUUM']);
+
+        return back()->with('success', 'Tablas optimizadas y estadísticas actualizadas con éxito.');
+    } catch (\Exception $e) {
+        return back()->with('error', 'Error al optimizar: ' . $e->getMessage());
     }
+}
+
+public function clearCache()
+{
+    try {
+        // Limpiamos caché de rutas, vistas, configuración y la general
+        Artisan::call('cache:clear');
+        Artisan::call('view:clear');
+        Artisan::call('config:clear');
+        Artisan::call('route:clear');
+
+        record_security_event('Limpieza de Caché del Sistema', 'Baja');
+
+        return back()->with('success', 'La caché del sistema ha sido purgada correctamente.');
+    } catch (\Exception $e) {
+        return back()->with('error', 'Error al limpiar caché: ' . $e->getMessage());
+    }
+}
 }

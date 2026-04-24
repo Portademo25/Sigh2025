@@ -45,7 +45,7 @@
         }
         .footer {
             position: fixed;
-            top: 930px;
+            top: 860px;
             bottom: 0;
             left: 0;
             width: 100%;
@@ -92,7 +92,7 @@
   <div style="text-align: justify; line-height: 1.8; font-size: 13px;">
     Quien suscribe, <strong>DIRECTOR EJECUTIVO del FONDO NACIONAL ANTIDROGAS</strong>, hace constar por medio de la presente que el (la) ciudadano (a) <strong>{{ $ls_nombres }} {{ $ls_apellidos }}</strong>, Titular de la Cédula de Identidad V.- <strong>{{ $ls_cedula }}</strong>, presta sus servicios en esta Institución desde el día <strong>{{ $ld_fecha_ingreso }}</strong>, ejerciendo funciones como <strong>{{ $ls_cargo }}</strong>, adscrito a la <strong>{{ $ls_unidad_administrativa }}</strong>, percibiendo una remuneración mensual de <strong>{{ $li_mensual_inte_sueldo }}</strong>.
     <br><br>
-    Adicionalmente, percibe el beneficio de Alimentación mensual, por la cantidad de <strong>{{ $ls_monto_alimentacion }}</strong>.
+    Adicionalmente, percibe el beneficio de Alimentación mensual, por la cantidad de,  <strong>{{ $ls_monto_alimentacion }}</strong>.
     <br><br>
     Constancia que se expide a petición de la parte interesada, en Caracas a los <strong> {{ $ls_dia }} </strong> días del mes de <strong>{{ $ls_mes }}</strong> del <strong>{{ $ls_ano }}</strong>.
 </div>
